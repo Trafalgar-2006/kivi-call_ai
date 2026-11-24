@@ -24,9 +24,9 @@ enum class LiveAction(val label: String) {
         Store.log("You chose \"$label\" during the call")
         when (this) {
             TAKE -> CallWatcher.active?.takeOver()
-            TEXT -> s.direct("($owner asks the caller to send a text message instead. Tell them politely, note it, say goodbye and hang up.)")
-            CALL_BACK -> s.direct("($owner will call back in about 10 minutes. Tell the caller, take any message, then say goodbye and hang up.)")
-            BLOCK -> s.block("($owner says this caller is spam. Say a brief goodbye, note it as blocked, and hang up now.)")
+            TEXT -> s.direct("($owner asks the caller to send a text message instead. Tell them politely, then end the call with \"Bye bye!\")")
+            CALL_BACK -> s.direct("($owner will call back in about 10 minutes. Tell the caller, take any message, then end the call with \"Bye bye!\")")
+            BLOCK -> s.block("($owner says this caller is spam. Say a brief goodbye ending with \"Bye bye!\" now.)")
         }
     }
 }

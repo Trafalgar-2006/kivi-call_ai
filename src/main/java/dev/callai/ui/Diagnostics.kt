@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import dev.callai.Fix
 import dev.callai.Health
 import dev.callai.ai.LiveSession
+import dev.callai.ai.Summary
+import kotlin.concurrent.thread
 import dev.callai.audio.Bridge
 import dev.callai.data.Store
 import rikka.shizuku.Shizuku
@@ -75,7 +77,13 @@ fun DiagnosticsScreen(go: (Screen) -> Unit, back: () -> Unit) {
             }
             item {
                 Row(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(onClick = { gemini = "Checking…"; LiveSession.check(ctx) { gemini = it ?: "Gemini answered. Voice is working." } }) {
+                    OutlinedButton(onClick = {
+                        gemini = "Checking…"
+                        LiveSession.check(ctx) { voice ->
+                            gemini = voice ?: "Voice is working. Checking notes…"
+                            if (voice == null) thread { gemini = Summary.check()?.replaceFirstChar { it.uppercase() } ?: "Voice and notes are working." }
+                        }
+                    }) {
                         Text("Test Gemini connection")
                     }
                     gemini?.let { Text(it, Modifier.padding(start = 12.dp), style = MaterialTheme.typography.bodyMedium) }
