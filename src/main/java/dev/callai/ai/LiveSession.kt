@@ -32,8 +32,10 @@ import dev.callai.audio.CallAudio
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
-// Extended thinking: more reasoning about unclear, accented speech, at a small latency cost. Requires every tool to be NON_BLOCKING.
-private const val MODEL = "models/gemini-3.8-live-extended-thinking"
+// Free tier; speech in, speech out. The extended-thinking variant was tried and dropped: in tests it never called
+// take_note or hang_up (it "thought" for 22 s and gave up), so calls didn't end and notes were lost.
+private const val MODEL = "models/gemini-3.8-live"
+private const val SILENCE_HANGUP_MS = 15_000L // nobody has spoken for this long: the call is over
 private const val URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="
 private const val MAX_CALL_MS = 3 * 60_000L
 private val LANGUAGE_CODES = mapOf("Telugu" to "te", "Hindi" to "hi", "English" to "en", "Kannada" to "kn", "Tamil" to "ta", "Malayalam" to "ml")
@@ -87,6 +89,18 @@ class LiveSession(
     private val main = Handler(Looper.getMainLooper())
     private var reconnected = false // one second chance per call if the line to Gemini drops
     private var resuming = false
+    @Volatile private var lastActivity = 0L // last time either side said anything
+    // Safety net: if the model says goodbye but never calls hang_up, the call still ends.
+    private val silenceCheck = object : Runnable {
+        override fun run() {
+            if (done) return
+            if (SystemClock.uptimeMillis() - lastActivity > SILENCE_HANGUP_MS && audio?.isPlaying() != true) {
+                Store.log("Hung up after ${SILENCE_HANGUP_MS / 1000} s of silence")
+                kiviHungUp = true
+                stop(byAssistant = true)
+            } else main.postDelayed(this, 2000)
+        }
+    }
     @Volatile private var emergency: String? = null      // set when Kivi raises the alarm
     @Volatile private var forcedCategory: String? = null // you said "block" mid-call
     private var notifiedAt = 0L
@@ -138,6 +152,8 @@ class LiveSession(
         begun = true
         audio = a
         beganAt = SystemClock.uptimeMillis()
+        lastActivity = beganAt
+        main.postDelayed(silenceCheck, 2000)
         if (record) current.value = this
         updateLive(force = true)
         if (ready) talk()
@@ -231,6 +247,7 @@ class LiveSession(
                         if (record) Store.log("Greeting started %.1f s after answering".format((firstAudioAt - beganAt) / 1000.0))
                     }
                     _talking.value = true
+                    lastActivity = SystemClock.uptimeMillis()
                     audio?.play(gen, Base64.decode(it, Base64.DEFAULT))
                 }
             }
@@ -277,6 +294,7 @@ class LiveSession(
 
     private fun heard(text: String, final: Boolean) {
         if (text.isBlank()) return
+        lastActivity = SystemClock.uptimeMillis()
         val lines = _lines.value.toMutableList()
         if (callerAt !in lines.indices || kiviSpokeSince) {
             lines += Line(true, ""); callerAt = lines.lastIndex; callerFinal = ""; kiviSpokeSince = false
@@ -313,8 +331,6 @@ class LiveSession(
 
     private fun setup(): JSONObject {
         val generation = JSONObject().put("responseModalities", JSONArray().put("AUDIO"))
-            // The extended-thinking model refuses sessions without a level; medium starts as fast as low (~1 s) but thinks harder.
-            .put("thinkingConfig", JSONObject().put("thinkingLevel", "medium"))
             .put("speechConfig", JSONObject().put("voiceConfig", JSONObject()
                 .put("prebuiltVoiceConfig", JSONObject().put("voiceName", Settings.now.voice))))
         return JSONObject().put("setup", JSONObject()
