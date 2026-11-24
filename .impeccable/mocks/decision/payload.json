@@ -1,0 +1,111 @@
+{
+  "title": "Choose Kivi's visual world",
+  "question": "The roll assigned Tailgate (Indian truck art). Keep it, take an alternate, or re-roll.",
+  "options": [
+    {
+      "id": "assigned",
+      "kind": "assigned",
+      "label": "Tailgate",
+      "kicker": "THE ROLL",
+      "lineage": "Hand-painted Indian truck art: 'Horn OK Please' tailgates",
+      "thesis": "The home screen is a painted tailgate that tells every caller how to get through.",
+      "palette": ["#0b1c26", "#114c63", "#f2b21b", "#c7372b", "#f4ecdc"],
+      "materials": ["enamel sign paint", "painted border bands", "shaded sign lettering"],
+      "viewport": "Kivi on a framed tailgate panel: the state word in shaded sign lettering, painted rules 'FAVOURITES RING THROUGH · CALL TWICE IF URGENT'; standard Material modes grid and call inbox below.",
+      "risk": "Turns into festival kitsch if the paint spreads beyond the tailgate panel; everything else must stay calm Material.",
+      "raised": [
+        {"from": "challenger-jcard", "raise": "Every call row carries its duration, right-aligned tight to the margin."},
+        {"from": "challenger-bitmap", "raise": "One strict type scale: the sign lettering appears at exactly two sizes, never improvised."},
+        {"from": "challenger-wall", "raise": "Transcript and actions appear only when a note is opened; the inbox stays one line of truth per call."},
+        {"from": "challenger-zoo", "raise": "One motion grammar everywhere: a single duration with a small overshoot, including the panel repaint on mode change."},
+        {"from": "challenger-labanotation", "raise": "Transcripts are mirrored columns: caller left, Kivi right, time running down."}
+      ],
+      "html": ".impeccable/mocks/decision/assigned.html",
+      "htmlFrame": "390x844"
+    },
+    {
+      "id": "model-pick",
+      "kind": "pick",
+      "label": "Inland Letter",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "India Post inland letter cards and rubber-stamp postmarks",
+      "thesis": "Every call becomes a letter left for you; its category is a postmark.",
+      "palette": ["#132133", "#a9c6e6", "#c8102e", "#1a2a44"],
+      "materials": ["inland-letter blue card", "airmail border", "rubber-stamp ink"],
+      "viewport": "Kivi inside an inland-letter card with an ON DUTY postmark; letters-for-you inbox with stamped categories.",
+      "risk": "The paper-and-stamp metaphor is the familiar destination for message apps; most runs land near it.",
+      "html": ".impeccable/mocks/decision/model-pick.html",
+      "htmlFrame": "390x844"
+    },
+    {
+      "id": "challenger-splitflap",
+      "kind": "challenger",
+      "catalogId": "signals-instruments-split-flap-concourse",
+      "label": "Arrivals Board",
+      "verdict": "competitive",
+      "lineage": "Rail concourse split-flap boards",
+      "thesis": "Your calls arrive like trains: time, caller, status, one ruled row each.",
+      "palette": ["#101214", "#050505", "#f5b041", "#d9534f"],
+      "materials": ["matte black flaps", "white paint letters", "amber row lamps"],
+      "viewport": "State word on flaps beside Kivi; an ARRIVALS board of calls with amber/red status columns.",
+      "case": "Fuses cleanly (calls as arrivals, category as status); holds clarity but loses on Indian identification.",
+      "risk": "Reads cold and transit-themed; the elephant's warmth fights the black board.",
+      "html": ".impeccable/mocks/decision/challenger-splitflap.html",
+      "htmlFrame": "390x844",
+      "hero": "https://impeccable.style/worlds/cards/signals-instruments-split-flap-concourse-hero.webp"
+    },
+    {
+      "id": "challenger-jcard", "kind": "challenger", "catalogId": "vernacular-ephemera-cassette-j-card",
+      "label": "Cassette J-card", "verdict": "declined", "lineage": "Hand-lettered mixtape inlays",
+      "thesis": "Calls as a hand-ruled tracklist.", "palette": ["#f7f7f2", "#1f3fa8", "#c8102e"],
+      "materials": ["ballpoint on inlay card"], "viewport": "Side A/B tracklist of calls.",
+      "case": "Loses both axes: no link to screening or Indian callers.", "kept": "Durations right-aligned tight to the margin.",
+      "risk": "Nostalgia without function.", "hero": "https://impeccable.style/worlds/cards/vernacular-ephemera-cassette-j-card-hero.webp"
+    },
+    {
+      "id": "challenger-bitmap", "kind": "challenger", "catalogId": "emigre-bitmap-specimen",
+      "label": "Bitmap Specimen", "verdict": "declined", "lineage": "Emigre bitmap type specimens",
+      "thesis": "Status as pixel display type.", "palette": ["#ffffff", "#000000", "#ff3b00"],
+      "materials": ["halftone", "dot matrix"], "viewport": "Pixel 'SLEEPING' at poster scale.",
+      "case": "Loses both axes: cold, unreadable in Indic scripts.", "kept": "A strict, repeated type scale.",
+      "risk": "Illegible transcripts.", "hero": "https://impeccable.style/worlds/cards/emigre-bitmap-specimen-hero.webp"
+    },
+    {
+      "id": "challenger-wall", "kind": "challenger", "catalogId": "pop-culture-shelf-streaming-title-card-wall",
+      "label": "Title Wall", "verdict": "declined", "lineage": "Streaming catalog rows",
+      "thesis": "Calls as poster tiles.", "palette": ["#141414", "#e50914"],
+      "materials": ["poster tiles"], "viewport": "Rows of caller tiles.",
+      "case": "Loses both axes: calls have no artwork.", "kept": "Details revealed only on focus.",
+      "risk": "Empty tiles.", "hero": "https://impeccable.style/worlds/cards/pop-culture-shelf-streaming-title-card-wall-hero.webp"
+    },
+    {
+      "id": "challenger-zoo", "kind": "challenger", "catalogId": "aww2-zoo-gardens-guide-map",
+      "label": "Zoo Guide Map", "verdict": "declined", "lineage": "Flat-colour zoo guide maps",
+      "thesis": "Modes as lobes of a map.", "palette": ["#8ed462", "#f5f1e4", "#ff705d", "#2ba0ff"],
+      "materials": ["flat colour lobes"], "viewport": "One mode lobe per screen.",
+      "case": "Loses both axes: playful but hides the inbox.", "kept": "One motion grammar with a small overshoot.",
+      "risk": "Navigation by geography.", "hero": "https://impeccable.style/worlds/cards/aww2-zoo-gardens-guide-map-hero.webp"
+    },
+    {
+      "id": "challenger-labanotation", "kind": "challenger", "catalogId": "notation-diagram-systems-labanotation",
+      "label": "Dance Score", "verdict": "declined", "lineage": "Labanotation scores",
+      "thesis": "Calls as a notated score.", "palette": ["#ffffff", "#000000", "#cccccc"],
+      "materials": ["score paper"], "viewport": "Center staff of call events.",
+      "case": "Loses both axes: abstract.", "kept": "Mirrored columns: caller left, Kivi right.",
+      "risk": "Unreadable at a glance.", "hero": "https://impeccable.style/worlds/cards/notation-diagram-systems-labanotation-hero.webp"
+    }
+  ],
+  "reroll": { "registers": ["safer", "bolder"] },
+  "buildPath": { "value": "code" },
+  "canon": true,
+  "canonCard": {
+    "kind": "canon",
+    "label": "The category standard",
+    "thesis": "Material 3 dark with Dynamic Color, executed impeccably.",
+    "palette": ["#141218", "#d0bcff", "#381e72"],
+    "materials": ["tonal surfaces", "Material icons"],
+    "viewport": "Status card, mode chips, call list: what Google's Call Screen users expect.",
+    "risk": "Indistinguishable from every other call app by design."
+  },
+  "steer": true
+}

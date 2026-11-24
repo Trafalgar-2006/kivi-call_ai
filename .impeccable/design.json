@@ -1,0 +1,749 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-24T10:55:12.966Z",
+  "title": "Design System: Kivi",
+  "extensions": {
+    "colorMeta": {
+      "night-enamel": {
+        "role": "neutral",
+        "displayName": "Night Enamel",
+        "canonical": "oklch(21.7% 0.030 236.2)",
+        "tonalRamp": [
+          "#010d16",
+          "#162732",
+          "#334550",
+          "#516470",
+          "#728692",
+          "#94a8b6",
+          "#b7cddb",
+          "#def2ff"
+        ]
+      },
+      "marigold": {
+        "role": "primary",
+        "displayName": "Marigold",
+        "canonical": "oklch(80.2% 0.161 81.5)",
+        "tonalRamp": [
+          "#120a00",
+          "#322200",
+          "#573d00",
+          "#7e5a01",
+          "#a77904",
+          "#d29a14",
+          "#fdbd2f",
+          "#ffeccc"
+        ]
+      },
+      "vermilion": {
+        "role": "secondary",
+        "displayName": "Vermilion",
+        "canonical": "oklch(55.3% 0.183 29.1)",
+        "tonalRamp": [
+          "#1f0000",
+          "#4c0302",
+          "#7f0905",
+          "#b21f16",
+          "#da4a3c",
+          "#fb7766",
+          "#feb4a8",
+          "#ffe9e5"
+        ]
+      },
+      "leaf": {
+        "role": "mode",
+        "displayName": "Leaf (Drive)",
+        "canonical": "oklch(50.7% 0.107 155.6)",
+        "tonalRamp": [
+          "#000f05",
+          "#002e17",
+          "#01502c",
+          "#1d7346",
+          "#459566",
+          "#69b988",
+          "#8edeab",
+          "#c7fed9"
+        ]
+      },
+      "cream": {
+        "role": "neutral",
+        "displayName": "Sign Cream",
+        "canonical": "oklch(94.5% 0.023 84.6)",
+        "tonalRamp": [
+          "#100a02",
+          "#2a2418",
+          "#484134",
+          "#676053",
+          "#898273",
+          "#aca495",
+          "#d0c8b9",
+          "#f6eede"
+        ]
+      },
+      "resting-slate": {
+        "role": "mode",
+        "displayName": "Resting Slate",
+        "canonical": "oklch(37.2% 0.025 229.9)",
+        "tonalRamp": [
+          "#020d14",
+          "#18272f",
+          "#35454d",
+          "#53646d",
+          "#74858e",
+          "#96a8b2",
+          "#bacdd6",
+          "#dff2fc"
+        ]
+      },
+      "mode-sleep": {
+        "role": "mode",
+        "displayName": "Sleep Indigo",
+        "canonical": "oklch(43.7% 0.164 283.6)",
+        "tonalRamp": [
+          "#0b002e",
+          "#24006c",
+          "#3d2994",
+          "#594db9",
+          "#7870e0",
+          "#9a96fe",
+          "#c2c3fc",
+          "#ecedfe"
+        ]
+      },
+      "mode-busy": {
+        "role": "mode",
+        "displayName": "Busy Ochre",
+        "canonical": "oklch(54.8% 0.117 72.5)",
+        "tonalRamp": [
+          "#130900",
+          "#352002",
+          "#5b3a05",
+          "#84570d",
+          "#ad7522",
+          "#d2984a",
+          "#f8bd6f",
+          "#ffebd3"
+        ]
+      },
+      "mode-away": {
+        "role": "mode",
+        "displayName": "Away Red",
+        "canonical": "oklch(51.1% 0.161 28.7)",
+        "tonalRamp": [
+          "#1f0000",
+          "#4d0101",
+          "#800304",
+          "#aa2f25",
+          "#d15447",
+          "#f97869",
+          "#fdb4a9",
+          "#fee9e5"
+        ]
+      },
+      "mode-strangers": {
+        "role": "tertiary",
+        "displayName": "Peacock Teal (Strangers)",
+        "canonical": "oklch(46.3% 0.080 224.1)",
+        "tonalRamp": [
+          "#000e14",
+          "#022a36",
+          "#05495d",
+          "#206b83",
+          "#468da6",
+          "#6ab0ca",
+          "#8ed5f0",
+          "#d9f4ff"
+        ]
+      },
+      "on-paint": {
+        "role": "neutral",
+        "displayName": "Paint White",
+        "canonical": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "kivi-skin": {
+        "role": "mascot",
+        "displayName": "Kivi Hide",
+        "canonical": "oklch(81.8% 0.028 234.1)",
+        "tonalRamp": [
+          "#010d15",
+          "#172731",
+          "#34454f",
+          "#52646f",
+          "#738591",
+          "#95a8b4",
+          "#b9cdd9",
+          "#ddf2ff"
+        ]
+      },
+      "kivi-ear": {
+        "role": "mascot",
+        "displayName": "Kivi Ear",
+        "canonical": "oklch(76.3% 0.032 234.6)",
+        "tonalRamp": [
+          "#000d17",
+          "#142833",
+          "#314551",
+          "#506571",
+          "#708693",
+          "#92a9b7",
+          "#b6cddb",
+          "#ddf2ff"
+        ]
+      },
+      "kivi-blush": {
+        "role": "mascot",
+        "displayName": "Kivi Blush",
+        "canonical": "oklch(78.9% 0.097 25.8)",
+        "tonalRamp": [
+          "#1f0001",
+          "#4a0709",
+          "#6c2926",
+          "#904944",
+          "#b56b64",
+          "#db8d86",
+          "#fdb4ac",
+          "#ffe9e6"
+        ]
+      },
+      "enamel-tonal": {
+        "role": "neutral",
+        "displayName": "Enamel Brass",
+        "canonical": "oklch(31.3% 0.052 91.0)",
+        "tonalRamp": [
+          "#100a00",
+          "#2e2402",
+          "#4c4120",
+          "#6c603e",
+          "#8e825e",
+          "#b1a480",
+          "#d6c9a3",
+          "#fbeec8"
+        ]
+      },
+      "coral-dark": {
+        "role": "secondary",
+        "displayName": "Coral",
+        "canonical": "oklch(75.8% 0.145 29.0)",
+        "tonalRamp": [
+          "#1f0000",
+          "#4d0101",
+          "#7d0e09",
+          "#a3372d",
+          "#ca5b4d",
+          "#f27e6f",
+          "#fdb4a9",
+          "#fee9e5"
+        ]
+      },
+      "peacock-mist": {
+        "role": "tertiary",
+        "displayName": "Peacock Mist",
+        "canonical": "oklch(95.8% 0.020 216.2)",
+        "tonalRamp": [
+          "#030d11",
+          "#1a282b",
+          "#364549",
+          "#556469",
+          "#75868a",
+          "#98a8ad",
+          "#bbcdd2",
+          "#e0f2f7"
+        ]
+      },
+      "container-high-dark": {
+        "role": "neutral",
+        "displayName": "Enamel Container",
+        "canonical": "oklch(31.0% 0.042 232.1)",
+        "tonalRamp": [
+          "#000d16",
+          "#0c2836",
+          "#2a4655",
+          "#496675",
+          "#698798",
+          "#8baabb",
+          "#afcfe0",
+          "#ddf2fe"
+        ]
+      },
+      "container-highest-dark": {
+        "role": "neutral",
+        "displayName": "Raised Enamel",
+        "canonical": "oklch(34.3% 0.045 231.1)",
+        "tonalRamp": [
+          "#000d15",
+          "#082937",
+          "#274656",
+          "#466676",
+          "#678899",
+          "#89abbd",
+          "#accfe2",
+          "#dcf3fe"
+        ]
+      },
+      "on-surface-variant-dark": {
+        "role": "neutral",
+        "displayName": "Fog",
+        "canonical": "oklch(79.6% 0.030 227.1)",
+        "tonalRamp": [
+          "#000d15",
+          "#142831",
+          "#31454f",
+          "#4f656f",
+          "#708691",
+          "#92a9b4",
+          "#b5ced9",
+          "#daf3ff"
+        ]
+      },
+      "outline-dark": {
+        "role": "neutral",
+        "displayName": "Weathered Outline",
+        "canonical": "oklch(52.9% 0.038 229.0)",
+        "tonalRamp": [
+          "#000d15",
+          "#0f2834",
+          "#2c4652",
+          "#4b6672",
+          "#6b8795",
+          "#8daab8",
+          "#b1cedd",
+          "#dcf3fe"
+        ]
+      },
+      "error-container-dark": {
+        "role": "error",
+        "displayName": "Rust Container",
+        "canonical": "oklch(32.4% 0.098 28.8)",
+        "tonalRamp": [
+          "#1f0000",
+          "#4a0705",
+          "#6d2922",
+          "#914a40",
+          "#b66b60",
+          "#dc8d82",
+          "#feb4a9",
+          "#ffe9e5"
+        ]
+      },
+      "on-error-container-dark": {
+        "role": "error",
+        "displayName": "Rust Mist",
+        "canonical": "oklch(91.8% 0.042 28.8)",
+        "tonalRamp": [
+          "#1a0403",
+          "#371d19",
+          "#563935",
+          "#785854",
+          "#9a7974",
+          "#be9c96",
+          "#e4bfba",
+          "#fee9e5"
+        ]
+      },
+      "ground-light": {
+        "role": "neutral",
+        "displayName": "Daylight Ground",
+        "canonical": "oklch(96.1% 0.006 223.5)",
+        "tonalRamp": [
+          "#090c0d",
+          "#222627",
+          "#3f4344",
+          "#5e6264",
+          "#7f8385",
+          "#a1a6a8",
+          "#c5cacc",
+          "#eaeff1"
+        ]
+      },
+      "primary-light": {
+        "role": "primary",
+        "displayName": "Deep Ochre",
+        "canonical": "oklch(47.1% 0.099 76.3)",
+        "tonalRamp": [
+          "#130900",
+          "#342102",
+          "#593b05",
+          "#81580c",
+          "#a47a37",
+          "#c89d5b",
+          "#eec17e",
+          "#ffebd0"
+        ]
+      },
+      "primary-container-light": {
+        "role": "primary",
+        "displayName": "Marigold Wash",
+        "canonical": "oklch(92.4% 0.087 87.0)",
+        "tonalRamp": [
+          "#110a00",
+          "#302302",
+          "#533f05",
+          "#765e1d",
+          "#997f41",
+          "#bca264",
+          "#e2c687",
+          "#feedc5"
+        ]
+      },
+      "container-high-light": {
+        "role": "neutral",
+        "displayName": "Daylight Container",
+        "canonical": "oklch(93.1% 0.011 226.0)",
+        "tonalRamp": [
+          "#070c0f",
+          "#202629",
+          "#3c4347",
+          "#5b6366",
+          "#7c8487",
+          "#9ea7aa",
+          "#c2cbcf",
+          "#e7f0f4"
+        ]
+      },
+      "container-highest-light": {
+        "role": "neutral",
+        "displayName": "Daylight Raised",
+        "canonical": "oklch(91.2% 0.014 226.6)",
+        "tonalRamp": [
+          "#060c10",
+          "#1e272a",
+          "#3b4448",
+          "#596367",
+          "#7a8489",
+          "#9da7ac",
+          "#c0cbd0",
+          "#e5f1f6"
+        ]
+      },
+      "on-surface-variant-light": {
+        "role": "neutral",
+        "displayName": "Slate Ink",
+        "canonical": "oklch(43.6% 0.032 230.0)",
+        "tonalRamp": [
+          "#000d16",
+          "#132832",
+          "#304550",
+          "#4f6570",
+          "#6f8692",
+          "#91a9b6",
+          "#b5cedb",
+          "#dcf3ff"
+        ]
+      },
+      "outline-light": {
+        "role": "neutral",
+        "displayName": "Daylight Outline",
+        "canonical": "oklch(60.8% 0.031 225.0)",
+        "tonalRamp": [
+          "#000d14",
+          "#132831",
+          "#30464f",
+          "#4e656f",
+          "#6f8791",
+          "#91aab4",
+          "#b4ced9",
+          "#d9f4ff"
+        ]
+      },
+      "tertiary-container-light": {
+        "role": "tertiary",
+        "displayName": "Peacock Wash",
+        "canonical": "oklch(92.1% 0.033 215.6)",
+        "tonalRamp": [
+          "#000e12",
+          "#10292f",
+          "#2d474d",
+          "#4c666d",
+          "#6c888f",
+          "#8eabb2",
+          "#b2cfd7",
+          "#d7f5fd"
+        ]
+      },
+      "error-light": {
+        "role": "error",
+        "displayName": "Signal Red",
+        "canonical": "oklch(50.1% 0.178 28.7)",
+        "tonalRamp": [
+          "#1f0000",
+          "#4d0101",
+          "#800304",
+          "#b0221b",
+          "#d84c3f",
+          "#fd7565",
+          "#fdb4a9",
+          "#fee9e5"
+        ]
+      },
+      "error-container-light": {
+        "role": "error",
+        "displayName": "Rose Wash",
+        "canonical": "oklch(92.2% 0.030 22.8)",
+        "tonalRamp": [
+          "#160606",
+          "#321f1e",
+          "#513c3b",
+          "#725b59",
+          "#947c7a",
+          "#b79e9c",
+          "#dcc2c0",
+          "#ffe9e7"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "sign-large": {
+        "displayName": "Sign Large",
+        "purpose": "The tailgate state word only. Cream with a hard 2.5dp vermilion drop shade; one line, steps down to 26sp minimum instead of wrapping."
+      },
+      "sign-small": {
+        "displayName": "Sign Small",
+        "purpose": "The painted rules on the night-enamel signboard. Marigold, uppercase, centred."
+      },
+      "headline-medium": {
+        "displayName": "Headline Medium",
+        "purpose": "Caller name on call detail."
+      },
+      "headline-small": {
+        "displayName": "Headline Small",
+        "purpose": "Mode sheet titles, setup headings, welcome line."
+      },
+      "title-large": {
+        "displayName": "Title Large",
+        "purpose": "Top app bar title; the call reason on call detail."
+      },
+      "title-medium": {
+        "displayName": "Title Medium",
+        "purpose": "Section titles (on-surface-variant) and caller names in call rows."
+      },
+      "title-small": {
+        "displayName": "Title Small",
+        "purpose": "Mode tile names and mode sheet option labels."
+      },
+      "body-large": {
+        "displayName": "Body Large",
+        "purpose": "Transcript bubbles, setup copy, toggles."
+      },
+      "body-medium": {
+        "displayName": "Body Medium",
+        "purpose": "Tailgate subtitle, call reasons, banners."
+      },
+      "body-small": {
+        "displayName": "Body Small",
+        "purpose": "Helper text in settings; monospace variant for the diagnostics log."
+      },
+      "label-large": {
+        "displayName": "Label Large",
+        "purpose": "Buttons, filter chips and call durations (tabular figures)."
+      },
+      "label-medium": {
+        "displayName": "Label Medium",
+        "purpose": "Category tags (bold), relative times, transcript speaker labels."
+      },
+      "label-small": {
+        "displayName": "Label Small",
+        "purpose": "Mode tile captions (max two lines)."
+      }
+    },
+    "shadows": [
+      {
+        "name": "sign-shade",
+        "value": "text-shadow: 2.5px 2.5px 0 #C7372B",
+        "purpose": "The sign painter's hard vermilion drop shade under sign-large lettering only (2.5dp offset, 0 blur). The only shadow in the system; surfaces cast none."
+      }
+    ],
+    "motion": [
+      {
+        "name": "kivi-motion",
+        "value": "350ms cubic-bezier(0.34, 1.3, 0.64, 1)",
+        "purpose": "MOTION_MS + KiviEase (kiviMotion()): tailgate repaint wipe, state-word slide-in, mode-tile colour change, setup step slide. One duration with a small overshoot."
+      },
+      {
+        "name": "kivi-fade",
+        "value": "350ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "tween(MOTION_MS) at its default easing: Kivi mood crossfade and the old word fading out."
+      },
+      {
+        "name": "ear-flap",
+        "value": "1300ms reverse loop (2600ms asleep)",
+        "purpose": "Kivi idle: ears swing 3deg (1.5deg asleep)."
+      },
+      {
+        "name": "breathe",
+        "value": "1800ms reverse loop (2600ms asleep)",
+        "purpose": "Kivi idle: 1.5% vertical breathing scale from the feet."
+      },
+      {
+        "name": "blink",
+        "value": "4200ms loop, closed 3900-4120ms",
+        "purpose": "Kivi idle blink."
+      },
+      {
+        "name": "talk",
+        "value": "170ms reverse loop",
+        "purpose": "Trunk and mouth while Kivi is on a call."
+      },
+      {
+        "name": "z-drift",
+        "value": "2400ms linear loop",
+        "purpose": "Sleep z's rise and fade."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "ANIMATOR_DURATION_SCALE == 0",
+        "purpose": "Kivi holds still; z's stay solid."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Tailgate",
+      "kind": "custom",
+      "refersTo": "tailgate",
+      "description": "The signature: a painted truck tailgate stating Kivi's state and the rules callers face. Hover or focus to see the mode-change repaint wipe (350ms, KiviEase).",
+      "html": "<div class=\"ds-tailgate\" tabindex=\"0\"><div class=\"ds-tg-head\"><div class=\"ds-tg-kivi\"><svg viewBox=\"0 0 200 200\" width=\"100%\" height=\"100%\" role=\"img\" aria-label=\"Kivi the elephant\"><g stroke=\"#0B1C26\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M62 66 C40 50 10 58 9 92 C8 126 36 142 60 126 C68 110 72 84 62 66 Z\" fill=\"#9FB6C4\"/><path d=\"M56 78 C40 69 24 76 23 95 C22 114 38 123 52 115 C58 104 61 89 56 78 Z\" fill=\"#F2A29A\" stroke=\"none\"/><path d=\"M138 66 C160 50 190 58 191 92 C192 126 164 142 140 126 C132 110 128 84 138 66 Z\" fill=\"#9FB6C4\"/><path d=\"M144 78 C160 69 176 76 177 95 C178 114 162 123 148 115 C142 104 139 89 144 78 Z\" fill=\"#F2A29A\" stroke=\"none\"/><path d=\"M68 128 C60 150 62 174 78 184 L122 184 C138 174 140 150 132 128 Z\" fill=\"#B3C7D3\"/><ellipse cx=\"80\" cy=\"184\" rx=\"15\" ry=\"9\" fill=\"#B3C7D3\"/><ellipse cx=\"120\" cy=\"184\" rx=\"15\" ry=\"9\" fill=\"#B3C7D3\"/><path d=\"M100 42 C130 42 151 63 151 92 C151 121 129 140 100 140 C71 140 49 121 49 92 C49 63 70 42 100 42 Z\" fill=\"#B3C7D3\"/><path d=\"M95 44 Q97 34 101 41 Q104 33 107 43\" fill=\"none\"/><path d=\"M100 110 C100 128 96 142 104 150 C110 156 121 152 119 144\" stroke=\"#B3C7D3\" stroke-width=\"17\" fill=\"none\"/><path d=\"M91 110 C91 130 86 146 98 157 C108 164 128 158 127 143 M109 112 C109 128 107 138 112 142\" fill=\"none\"/></g><ellipse cx=\"70\" cy=\"110\" rx=\"8\" ry=\"5\" fill=\"#F2A29A\" opacity=\".8\"/><ellipse cx=\"130\" cy=\"110\" rx=\"8\" ry=\"5\" fill=\"#F2A29A\" opacity=\".8\"/><path d=\"M76 95 H88 M112 95 H124\" stroke=\"#0B1C26\" stroke-width=\"3.5\" stroke-linecap=\"round\"/></svg></div><div><div class=\"ds-tg-word\">Resting.</div><div class=\"ds-tg-sub\">Every call rings. Pick a mode to start.</div></div></div><div class=\"ds-tg-rule\"></div><div class=\"ds-tg-board\"><div>ALL CALLS RING</div><div>PICK A MODE BELOW</div></div></div>",
+      "css": "@import url('https://fonts.googleapis.com/css2?family=Yatra+One&display=swap'); .ds-tailgate{position:relative;isolation:isolate;overflow:hidden;max-width:360px;background:#33434B;border:5px solid #F2B21B;border-radius:26px;padding:15px 17px;color:#F4ECDC;font-family:Roboto, system-ui, sans-serif} .ds-tailgate::before{content:\"\";position:absolute;inset:0;z-index:-1;background:#4B3CA7;transform:scaleX(0);transform-origin:left;transition:transform 350ms cubic-bezier(0.34, 1.3, 0.64, 1)} .ds-tailgate:hover::before,.ds-tailgate:focus-visible::before{transform:scaleX(1)} .ds-tailgate::after{content:\"\";position:absolute;inset:4px;border:1.5px solid #C7372B;border-radius:19px;pointer-events:none} .ds-tailgate:focus-visible{outline:2px solid #F4ECDC;outline-offset:2px} .ds-tg-head{display:flex;align-items:center;gap:12px} .ds-tg-kivi{width:112px;height:112px;flex:none} .ds-tg-word{font-family:'Yatra One',cursive;font-size:42px;line-height:44px;white-space:nowrap;color:#F4ECDC;text-shadow:2.5px 2.5px 0 #C7372B} .ds-tg-sub{margin-top:6px;font-size:14px;line-height:20px;letter-spacing:.25px;color:rgba(244,236,220,.9)} .ds-tg-rule{height:3px;margin:14px 0;background:repeating-linear-gradient(90deg,#F2B21B 0 10px,transparent 10px 17px)} .ds-tg-board{background:#0B1C26;border-radius:12px;padding:8px 0;text-align:center;font-family:'Yatra One',cursive;font-size:19px;line-height:24px;letter-spacing:.6px;color:#F2B21B}"
+    },
+    {
+      "name": "KiviBadge",
+      "kind": "custom",
+      "refersTo": "kivi-badge",
+      "description": "Kivi off the tailgate always sits on teal paint (28% radius, 8% inset) so his night-ink outline never melts into the ground. Original vector artwork; no rasters.",
+      "html": "<div class=\"ds-badge\"><svg viewBox=\"0 0 200 200\" width=\"100%\" height=\"100%\" role=\"img\" aria-label=\"Kivi the elephant\"><g stroke=\"#0B1C26\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M62 66 C40 50 10 58 9 92 C8 126 36 142 60 126 C68 110 72 84 62 66 Z\" fill=\"#9FB6C4\"/><path d=\"M56 78 C40 69 24 76 23 95 C22 114 38 123 52 115 C58 104 61 89 56 78 Z\" fill=\"#F2A29A\" stroke=\"none\"/><path d=\"M138 66 C160 50 190 58 191 92 C192 126 164 142 140 126 C132 110 128 84 138 66 Z\" fill=\"#9FB6C4\"/><path d=\"M144 78 C160 69 176 76 177 95 C178 114 162 123 148 115 C142 104 139 89 144 78 Z\" fill=\"#F2A29A\" stroke=\"none\"/><path d=\"M68 128 C60 150 62 174 78 184 L122 184 C138 174 140 150 132 128 Z\" fill=\"#B3C7D3\"/><ellipse cx=\"80\" cy=\"184\" rx=\"15\" ry=\"9\" fill=\"#B3C7D3\"/><ellipse cx=\"120\" cy=\"184\" rx=\"15\" ry=\"9\" fill=\"#B3C7D3\"/><path d=\"M100 42 C130 42 151 63 151 92 C151 121 129 140 100 140 C71 140 49 121 49 92 C49 63 70 42 100 42 Z\" fill=\"#B3C7D3\"/><path d=\"M95 44 Q97 34 101 41 Q104 33 107 43\" fill=\"none\"/><path d=\"M100 110 C100 128 96 142 104 150 C110 156 121 152 119 144\" stroke=\"#B3C7D3\" stroke-width=\"17\" fill=\"none\"/><path d=\"M91 110 C91 130 86 146 98 157 C108 164 128 158 127 143 M109 112 C109 128 107 138 112 142\" fill=\"none\"/></g><ellipse cx=\"70\" cy=\"110\" rx=\"8\" ry=\"5\" fill=\"#F2A29A\" opacity=\".8\"/><ellipse cx=\"130\" cy=\"110\" rx=\"8\" ry=\"5\" fill=\"#F2A29A\" opacity=\".8\"/><path d=\"M80 118 Q84 123 88 119\" stroke=\"#0B1C26\" stroke-width=\"3.5\" fill=\"none\" stroke-linecap=\"round\"/><ellipse cx=\"82\" cy=\"94\" rx=\"6\" ry=\"8\" fill=\"#0B1C26\"/><ellipse cx=\"118\" cy=\"94\" rx=\"6\" ry=\"8\" fill=\"#0B1C26\"/><circle cx=\"84\" cy=\"91\" r=\"2.2\" fill=\"#fff\"/><circle cx=\"120\" cy=\"91\" r=\"2.2\" fill=\"#fff\"/><path d=\"M56 84 C56 34 144 34 144 84\" stroke=\"#0B1C26\" stroke-width=\"7\" fill=\"none\"/><rect x=\"48\" y=\"76\" width=\"14\" height=\"24\" rx=\"6\" fill=\"#C7372B\" stroke=\"#0B1C26\" stroke-width=\"3\"/><rect x=\"138\" y=\"76\" width=\"14\" height=\"24\" rx=\"6\" fill=\"#C7372B\" stroke=\"#0B1C26\" stroke-width=\"3\"/><path d=\"M146 98 C146 118 130 126 116 126\" stroke=\"#0B1C26\" stroke-width=\"4\" fill=\"none\" stroke-linecap=\"round\"/><circle cx=\"113\" cy=\"126\" r=\"6\" fill=\"#F2B21B\" stroke=\"#0B1C26\" stroke-width=\"3\"/></svg></div>",
+      "css": ".ds-badge{width:112px;height:112px;padding:8.96px;border-radius:31.36px;background:#14627A;box-sizing:border-box}"
+    },
+    {
+      "name": "Mode Tile",
+      "kind": "button",
+      "refersTo": "mode-tile",
+      "description": "A mode at rest: tonal enamel container, muted caption. Tap opens the mode sheet.",
+      "html": "<button class=\"ds-tile\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M12.34 2.02C6.59 1.82 2 6.42 2 12c0 5.52 4.48 10 10 10 3.71 0 6.93-2.02 8.66-5.02-7.51-.25-12.09-8.43-8.32-14.96z\"/></svg><span class=\"ds-tile-t\">Sleep</span><span class=\"ds-tile-c\">Nightly 11:00 PM</span></button>",
+      "css": ".ds-tile{display:flex;flex-direction:column;align-items:flex-start;width:112px;min-height:92px;padding:14px;border:0;border-radius:20px;background-color:#183442;color:#F4ECDC;font-family:Roboto, system-ui, sans-serif;text-align:left;cursor:pointer;transition:background-color 350ms cubic-bezier(0.34, 1.3, 0.64, 1),color 350ms cubic-bezier(0.34, 1.3, 0.64, 1)} .ds-tile svg{margin-bottom:auto;padding-bottom:10px} .ds-tile .ds-tile-t{font-size:14px;line-height:20px;font-weight:500;letter-spacing:.1px} .ds-tile .ds-tile-c{font-size:11px;line-height:16px;font-weight:500;letter-spacing:.5px;color:#A9C1CC} .ds-tile:hover{background-image:linear-gradient(#F4ECDC14,#F4ECDC14)} .ds-tile:active{background-image:linear-gradient(#F4ECDC1f,#F4ECDC1f)} .ds-tile:focus-visible{outline:2px solid #F2B21B;outline-offset:2px}"
+    },
+    {
+      "name": "Mode Tile (on)",
+      "kind": "button",
+      "refersTo": "mode-tile-on",
+      "description": "An active mode fills with its own truck paint (here Sleep Indigo); all text turns white.",
+      "html": "<button class=\"ds-tile-on\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M12.34 2.02C6.59 1.82 2 6.42 2 12c0 5.52 4.48 10 10 10 3.71 0 6.93-2.02 8.66-5.02-7.51-.25-12.09-8.43-8.32-14.96z\"/></svg><span class=\"ds-tile-t\">Sleep</span><span class=\"ds-tile-c\">until 6:30 AM</span></button>",
+      "css": ".ds-tile-on{display:flex;flex-direction:column;align-items:flex-start;width:112px;min-height:92px;padding:14px;border:0;border-radius:20px;background-color:#4B3CA7;color:#FFFFFF;font-family:Roboto, system-ui, sans-serif;text-align:left;cursor:pointer;transition:background-color 350ms cubic-bezier(0.34, 1.3, 0.64, 1),color 350ms cubic-bezier(0.34, 1.3, 0.64, 1)} .ds-tile-on svg{margin-bottom:auto;padding-bottom:10px} .ds-tile-on .ds-tile-t{font-size:14px;line-height:20px;font-weight:500;letter-spacing:.1px} .ds-tile-on .ds-tile-c{font-size:11px;line-height:16px;font-weight:500;letter-spacing:.5px;color:#FFFFFF} .ds-tile-on:hover{background-image:linear-gradient(#FFFFFF14,#FFFFFF14)} .ds-tile-on:active{background-image:linear-gradient(#FFFFFF1f,#FFFFFF1f)} .ds-tile-on:focus-visible{outline:2px solid #F2B21B;outline-offset:2px}"
+    },
+    {
+      "name": "Filter Chips",
+      "kind": "chip",
+      "refersTo": "filter-chip-selected",
+      "description": "Inbox filters with tabular counts; the selected chip is Enamel Brass with Marigold text. \"All\" is an approved adaptation.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip ds-chip-on\">Needs you 1</button><button class=\"ds-chip\">Handled 0</button><button class=\"ds-chip\">Blocked 0</button><button class=\"ds-chip\">All 1</button></div>",
+      "css": ".ds-chips{display:flex;gap:8px;flex-wrap:wrap;padding:12px;background:#0B1C26;border-radius:12px} .ds-chip{height:32px;padding:0 16px;border:1px solid #55707D;border-radius:8px;background-color:transparent;color:#A9C1CC;font:500 14px/20px Roboto, system-ui, sans-serif;letter-spacing:.1px;font-variant-numeric:tabular-nums;cursor:pointer} .ds-chip.ds-chip-on{background-color:#3B300E;border-color:transparent;color:#F2B21B} .ds-chip:hover{background-image:linear-gradient(#F4ECDC14,#F4ECDC14)} .ds-chip:active{background-image:linear-gradient(#F4ECDC1f,#F4ECDC1f)} .ds-chip:focus-visible{outline:2px solid #F2B21B;outline-offset:2px}"
+    },
+    {
+      "name": "Category Tags",
+      "kind": "chip",
+      "refersTo": "category-tag-needs-you",
+      "description": "Note categories: Vermilion for Needs you, Leaf for Handled, neutral container for Blocked.",
+      "html": "<div class=\"ds-tags\"><span class=\"ds-tag ds-tag-needs\">Needs you</span><span class=\"ds-tag ds-tag-done\">Handled</span><span class=\"ds-tag ds-tag-blocked\">Blocked</span></div>",
+      "css": ".ds-tags{display:flex;gap:8px;padding:12px;background:#0B1C26;border-radius:12px} .ds-tag{padding:3px 8px;border-radius:6px;font:700 12px/16px Roboto, system-ui, sans-serif;letter-spacing:.5px} .ds-tag-needs{background:#C7372B;color:#FFFFFF} .ds-tag-done{background:#23774A;color:#FFFFFF} .ds-tag-blocked{background:#1E3D4C;color:#A9C1CC}"
+    },
+    {
+      "name": "Call Row",
+      "kind": "card",
+      "refersTo": "call-row",
+      "description": "An inbox note: name with the duration right-aligned tight to the margin, the reason, then tag and relative time.",
+      "html": "<div class=\"ds-call\" tabindex=\"0\"><div class=\"ds-call-top\"><span class=\"ds-call-name\">Ravi Kumar</span><span class=\"ds-call-dur\">0:37</span></div><div class=\"ds-call-why\">Courier at the gate, needs the flat number</div><div class=\"ds-call-meta\"><span class=\"ds-call-tag\">Needs you</span><span>12 minutes ago</span></div></div>",
+      "css": ".ds-call{max-width:360px;padding:14px 20px;background-color:#0B1C26;color:#F4ECDC;font-family:Roboto, system-ui, sans-serif;cursor:pointer} .ds-call-top{display:flex;align-items:center;gap:8px} .ds-call-name{flex:1;font-size:16px;line-height:24px;font-weight:500;letter-spacing:.15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .ds-call-dur{font-size:14px;line-height:20px;font-weight:500;font-variant-numeric:tabular-nums;color:#A9C1CC} .ds-call-why{font-size:14px;line-height:20px;letter-spacing:.25px;color:#A9C1CC} .ds-call-meta{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;line-height:16px;font-weight:500;letter-spacing:.5px;color:#A9C1CC} .ds-call-tag{padding:3px 8px;border-radius:6px;background:#C7372B;color:#FFFFFF;font-weight:700} .ds-call:hover{background-image:linear-gradient(#F4ECDC14,#F4ECDC14)} .ds-call:active{background-image:linear-gradient(#F4ECDC1f,#F4ECDC1f)} .ds-call:focus-visible{outline:2px solid #F2B21B;outline-offset:2px}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "M3 filled pill for the main action (Call back, Next, Finish). 48dp minimum.",
+      "html": "<button class=\"ds-btn\"><svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M19.23 15.26l-2.54-.29a1.99 1.99 0 00-1.64.57l-1.84 1.84a15.05 15.05 0 01-6.59-6.59l1.85-1.85c.43-.43.64-1.03.57-1.64l-.29-2.52A2 2 0 006.76 3.01H5.03c-1.13 0-2.07.94-2 2.07.53 8.54 7.36 15.36 15.89 15.89 1.13.07 2.07-.87 2.07-2v-1.73c.01-1.01-.75-1.86-1.76-1.98z\"/></svg><span>Call back</span></button>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 24px;border:0;border-radius:999px;background-color:#F2B21B;color:#0B1C26;font:500 14px/20px Roboto, system-ui, sans-serif;letter-spacing:.1px;cursor:pointer} .ds-btn:hover{background-image:linear-gradient(#0B1C2614,#0B1C2614)} .ds-btn:active{background-image:linear-gradient(#0B1C261f,#0B1C261f)} .ds-btn:focus-visible{outline:2px solid #F2B21B;outline-offset:2px}"
+    },
+    {
+      "name": "Tonal Button",
+      "kind": "button",
+      "refersTo": "button-tonal",
+      "description": "M3 tonal pill for secondary actions (Send reply, Hear what callers hear): Enamel Brass with Marigold text.",
+      "html": "<button class=\"ds-btn-tonal\">Hear what callers hear</button>",
+      "css": ".ds-btn-tonal{min-height:48px;padding:0 24px;border:0;border-radius:999px;background-color:#3B300E;color:#F2B21B;font:500 14px/20px Roboto, system-ui, sans-serif;letter-spacing:.1px;cursor:pointer} .ds-btn-tonal:hover{background-image:linear-gradient(#F2B21B14,#F2B21B14)} .ds-btn-tonal:active{background-image:linear-gradient(#F2B21B1f,#F2B21B1f)} .ds-btn-tonal:focus-visible{outline:2px solid #F2B21B;outline-offset:2px}"
+    },
+    {
+      "name": "Transcript",
+      "kind": "custom",
+      "refersTo": "transcript-kivi",
+      "description": "Mirrored columns: caller left in an enamel bubble, Kivi right in teal; 4dp tail corner on the speaker's side; label only when the speaker changes.",
+      "html": "<div class=\"ds-tx\"><div class=\"ds-tx-l\"><span class=\"ds-tx-who\">Caller</span><p class=\"ds-bub ds-bub-c\">Is he free to talk?</p></div><div class=\"ds-tx-r\"><span class=\"ds-tx-who\">Kivi</span><p class=\"ds-bub ds-bub-k\">He's driving right now. Shall I take a message?</p></div></div>",
+      "css": ".ds-tx{display:flex;flex-direction:column;gap:6px;max-width:360px;padding:12px;background:#0B1C26;border-radius:12px;font-family:Roboto, system-ui, sans-serif} .ds-tx-l{display:flex;flex-direction:column;align-items:flex-start} .ds-tx-r{display:flex;flex-direction:column;align-items:flex-end} .ds-tx-who{margin:8px 4px 2px;font-size:12px;line-height:16px;font-weight:500;letter-spacing:.5px;color:#A9C1CC} .ds-bub{margin:0;max-width:300px;padding:10px 14px;font-size:16px;line-height:24px;letter-spacing:.5px} .ds-bub-c{background:#183442;color:#F4ECDC;border-radius:18px 18px 18px 4px} .ds-bub-k{background:#14627A;color:#E3F5FA;border-radius:18px 18px 4px 18px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Painted Tailgate",
+    "overview": "Home is the back of a painted Indian truck. Where a tailgate says HORN OK PLEASE, Kivi's says FAVOURITES RING THROUGH · CALL TWICE IF URGENT. One hand-painted panel carries the whole personality: the paint of the active mode, a marigold band, a vermilion pinstripe, shaded sign lettering and Kivi the elephant. Everything around it is standard Material 3 in Roboto on night enamel, so the panel stays the loudest thing on screen and the rest reads in short glances.\n\nThe system is source-of-truth in src/main/java/dev/callai/ui/Theme.kt (Paint, modeColor(), Sign, signLarge(), SignSmall, MOTION_MS, KiviEase). Dark is the canonical world; light is its daylight print. Frontmatter dimensions are Android dp (type in sp), written as px for DESIGN.md tooling. Phone only; no tablet layout.",
+    "keyCharacteristics": [
+      "One signature surface (the tailgate); quiet M3 chrome everywhere else.",
+      "Every mode owns one truck paint, used wherever that mode appears.",
+      "Sign lettering lives only on the tailgate, in two roles.",
+      "One motion grammar: 350ms with a small overshoot.",
+      "Flat: depth comes from paint and tonal containers, never shadows.",
+      "All vector. No rasters ship."
+    ],
+    "rules": [
+      {
+        "name": "The Paint Not Chrome Rule",
+        "body": "The tailgate, mode paints and KiviBadge use the same hex in both themes. Only the ground, containers and text roles follow the system theme.",
+        "section": "colors"
+      },
+      {
+        "name": "The Signboard Rule",
+        "body": "Marigold lettering never sits directly on a mode paint. The painted rules sit on a night-enamel signboard (9.2:1) so they hold AA on all six paints *(approved adaptation)*.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ochre Busy Rule",
+        "body": "Busy is painted ochre, not marigold, so white text on an active Busy tile passes AA (5.0:1) *(approved adaptation)*.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Sizes Rule",
+        "body": "Yatra One appears at exactly two roles, sign-large and sign-small, and only on the tailgate. The sleep \"z\"s drawn inside Kivi's artwork are illustration, not type.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Rule",
+        "body": "Numbers that change (durations, chip counts, clock times in logs) merge Tabular (tnum) so they don't jitter.",
+        "section": "typography"
+      },
+      {
+        "name": "The Paint-Is-Depth Rule",
+        "body": "To lift something, give it a container step or a paint, never an elevation shadow.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do take every mode colour from modeColor() and use it everywhere that mode appears: tailgate, active tile, sheet strip, option dots.",
+      "Do put white (on-paint) text on mode paints. Busy Ochre is the tightest at 5.0:1; check any new paint against it.",
+      "Do run every UI state change through kiviMotion() or tween(MOTION_MS).",
+      "Do keep touch targets at 48dp or more (sheet options are 52dp, tiles 92dp, end-call 56dp).",
+      "Do keep paint-coloured text only on surfaces where it holds 4.5:1. Leaf text on night enamel is 3.15:1 and fails.",
+      "Do honour the system's \"Remove animations\" setting in any new looping art."
+    ],
+    "donts": [
+      "Don't use Yatra One off the tailgate, at a third size, or wrapped onto two lines.",
+      "Don't put marigold lettering straight onto a mode paint; it belongs on the night-enamel signboard.",
+      "Don't place Kivi bare on night enamel; use a KiviBadge.",
+      "Don't add elevation shadows or raster art.",
+      "Don't introduce a second duration or easing for UI state; only Kivi's idle loops run on their own clocks.",
+      "Don't change tailgate, mode or badge paints between light and dark themes."
+    ]
+  }
+}

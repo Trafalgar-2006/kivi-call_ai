@@ -1,0 +1,11 @@
+<!-- Kivi's head as a one-colour silhouette: notification icon and launcher monochrome layer. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="200" android:viewportHeight="200">
+    <group android:translateY="10">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M62,66 C40,50 10,58 9,92 C8,126 36,142 60,126 C68,110 72,84 62,66 Z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M138,66 C160,50 190,58 191,92 C192,126 164,142 140,126 C132,110 128,84 138,66 Z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M100,42 C130,42 151,63 151,92 C151,121 129,140 100,140 C71,140 49,121 49,92 C49,63 70,42 100,42 Z" />
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="18" android:strokeLineCap="round" android:fillColor="#00000000"
+            android:pathData="M100,110 C100,128 96,142 104,150 C110,156 121,152 119,144" />
+    </group>
+</vector>

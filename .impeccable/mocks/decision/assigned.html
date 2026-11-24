@@ -1,0 +1,36 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Yatra+One&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}body{margin:0;width:390px;height:844px;overflow:hidden;background:#0b1c26;font-family:Roboto,sans-serif;color:#f4ecdc}
+.top{display:flex;justify-content:space-between;align-items:center;padding:14px 20px 6px;font:500 22px Roboto}
+.gate{margin:8px 14px;border-radius:22px;background:#114c63;padding:16px 18px 14px;border:4px solid #f2b21b;box-shadow:inset 0 0 0 3px #c7372b}
+.gate .row{display:flex;gap:12px;align-items:center}
+.ele{width:118px;height:118px;border-radius:50%;background:#8fb0be;position:relative;flex:none}
+.ele:before,.ele:after{content:"";position:absolute;top:22px;width:58px;height:74px;border-radius:50%;background:#b9d0d9}
+.ele:before{left:-22px}.ele:after{right:-22px}
+.state{font-family:'Yatra One';font-size:50px;line-height:.95;color:#fff;text-shadow:3px 3px 0 #c7372b,5px 5px 0 #0b1c26}
+.sub{font-size:15px;margin-top:6px;color:#d7ecf2}
+.rules{margin-top:14px;border-top:3px dashed #f2b21b;padding-top:10px;font-family:'Yatra One';font-size:23px;letter-spacing:.5px;color:#f2b21b;text-align:center;line-height:1.25}
+h3{font:500 14px Roboto;letter-spacing:.6px;margin:18px 20px 8px;color:#9fb9c4}
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 14px}
+.m{height:70px;border-radius:16px;background:#14303d;padding:10px;font:500 15px Roboto}
+.m small{display:block;font:400 12px Roboto;color:#9fb9c4;margin-top:16px}
+.m.on{background:#5b4bb7;color:#fff}.m.on small{color:#e3defc}
+.chips{display:flex;gap:8px;padding:0 20px}
+.chip{border:1px solid #3a5866;border-radius:10px;padding:8px 12px;font:500 14px Roboto}.chip.on{background:#f2b21b;color:#0b1c26;border:none}
+.call{margin:8px 14px;background:#122a36;border-radius:16px;padding:12px 14px}
+.call b{font-size:17px}.call .r{float:right;font-size:13px;color:#9fb9c4}
+.call p{margin:4px 0 0;font-size:15px;color:#d7ecf2}
+.tag{display:inline-block;margin-top:8px;font:700 12px Roboto;padding:3px 8px;border-radius:6px;background:#c7372b;color:#fff}
+</style></head><body>
+<div class="top"><span>Kivi</span><span>⚙</span></div>
+<div class="gate"><div class="row"><div class="ele"></div><div>
+<div class="state">Sleeping.</div><div class="sub">Answering everyone until 6:30 AM</div></div></div>
+<div class="rules">FAVOURITES RING THROUGH<br>CALL TWICE IF URGENT</div></div>
+<h3>MODES</h3>
+<div class="modes"><div class="m on">Sleep<small>until 6:30 AM</small></div><div class="m">Busy<small>Calendar</small></div><div class="m">Drive<small>Off</small></div><div class="m">Away<small>Off</small></div><div class="m">Strangers<small>Always on</small></div></div>
+<h3>CALLS</h3>
+<div class="chips"><span class="chip on">Needs you 2</span><span class="chip">Handled</span><span class="chip">Blocked</span></div>
+<div class="call"><b>Ravi Kumar</b><span class="r">6:42 AM · 1:12</span><p>Courier at the gate, needs the flat number</p><span class="tag">NEEDS YOU</span></div>
+<div class="call"><b>Amma</b><span class="r">11:05 PM · 0:48</span><p>Asked you to call back before leaving</p><span class="tag">NEEDS YOU</span></div>
+</body></html>

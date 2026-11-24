@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ground">#EEF3F5</color>
+    <color name="tailgate">#14627A</color>
+    <style name="Kivi" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/ground</item>
+    </style>
+</resources>

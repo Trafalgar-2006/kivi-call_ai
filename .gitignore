@@ -1,0 +1,13 @@
+# Build output and caches
+.gradle/
+.kotlin/
+build/
+
+# Machine-specific (Android SDK path)
+local.properties
+
+# Device screenshots from design reviews: they show real calls, contacts and names
+.impeccable/review/
+# Local design-tool scratch
+.impeccable/questions/
+.playwright-mcp/

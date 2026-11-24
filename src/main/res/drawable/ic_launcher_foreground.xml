@@ -1,0 +1,16 @@
+<!-- Kivi with headset, sized into the adaptive-icon safe zone (108dp canvas, 66dp safe circle). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <group android:scaleX="0.36" android:scaleY="0.36" android:translateX="18" android:translateY="16">
+        <path android:fillColor="#9FB6C4" android:strokeColor="#0B1C26" android:strokeWidth="5" android:pathData="M62,66 C40,50 10,58 9,92 C8,126 36,142 60,126 C68,110 72,84 62,66 Z" />
+        <path android:fillColor="#F2A29A" android:pathData="M56,78 C40,69 24,76 23,95 C22,114 38,123 52,115 C58,104 61,89 56,78 Z" />
+        <path android:fillColor="#9FB6C4" android:strokeColor="#0B1C26" android:strokeWidth="5" android:pathData="M138,66 C160,50 190,58 191,92 C192,126 164,142 140,126 C132,110 128,84 138,66 Z" />
+        <path android:fillColor="#F2A29A" android:pathData="M144,78 C160,69 176,76 177,95 C178,114 162,123 148,115 C142,104 139,89 144,78 Z" />
+        <path android:fillColor="#B3C7D3" android:strokeColor="#0B1C26" android:strokeWidth="5" android:pathData="M100,42 C130,42 151,63 151,92 C151,121 129,140 100,140 C71,140 49,121 49,92 C49,63 70,42 100,42 Z" />
+        <path android:strokeColor="#B3C7D3" android:strokeWidth="17" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M100,110 C100,128 96,142 104,150 C110,156 121,152 119,144" />
+        <path android:strokeColor="#0B1C26" android:strokeWidth="5" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M91,110 C91,130 86,146 98,157 C108,164 128,158 127,143 M109,112 C109,128 107,138 112,142" />
+        <path android:fillColor="#0B1C26" android:pathData="M76,94 a6,8 0 1,0 12,0 a6,8 0 1,0 -12,0 M112,94 a6,8 0 1,0 12,0 a6,8 0 1,0 -12,0" />
+        <path android:strokeColor="#0B1C26" android:strokeWidth="8" android:fillColor="#00000000" android:pathData="M56,84 C56,34 144,34 144,84" />
+        <path android:fillColor="#C7372B" android:strokeColor="#0B1C26" android:strokeWidth="4" android:pathData="M54,76 h2 a6,6 0 0 1 6,6 v12 a6,6 0 0 1 -6,6 h-2 a6,6 0 0 1 -6,-6 v-12 a6,6 0 0 1 6,-6 z M144,76 h2 a6,6 0 0 1 6,6 v12 a6,6 0 0 1 -6,6 h-2 a6,6 0 0 1 -6,-6 v-12 a6,6 0 0 1 6,-6 z" />
+    </group>
+</vector>
