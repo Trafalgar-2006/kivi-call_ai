@@ -30,6 +30,27 @@ fun inMeeting(ctx: Context, now: Long): Boolean = runCatching {
     } ?: false
 }.getOrDefault(false)
 
+/**
+ * When you're next free, if a busy calendar event is on right now: the end of the run of busy events (gaps under
+ * 10 minutes don't count). Null when you're not in one, or Kivi can't read the calendar.
+ */
+fun busyUntil(ctx: Context, now: Long): Long? = runCatching {
+    val uri = CalendarContract.Instances.CONTENT_URI.buildUpon()
+        .also { ContentUris.appendId(it, now); ContentUris.appendId(it, now + 12 * 3_600_000L) }.build()
+    val busy = ctx.contentResolver.query(uri, arrayOf(CalendarContract.Instances.BEGIN, CalendarContract.Instances.END,
+        CalendarContract.Instances.AVAILABILITY, CalendarContract.Instances.ALL_DAY), null, null, CalendarContract.Instances.BEGIN)?.use { c ->
+        buildList { while (c.moveToNext()) if (c.getInt(2) == CalendarContract.Events.AVAILABILITY_BUSY && c.getInt(3) == 0) add(c.getLong(0) to c.getLong(1)) }
+    }.orEmpty()
+    freeAt(busy, now)
+}.getOrNull()
+
+/** The end of the busy run covering [now], from (begin, end) pairs; null if nothing covers it. */
+fun freeAt(events: List<Pair<Long, Long>>, now: Long): Long? {
+    var end = events.filter { it.first <= now && it.second > now }.maxOfOrNull { it.second } ?: return null
+    for ((begin, stop) in events.sortedBy { it.first }) if (begin <= end + 10 * 60_000L && stop > end) end = stop
+    return end
+}
+
 private val BLUETOOTH = setOf(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
     AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_BLE_SPEAKER)
 

@@ -1,6 +1,15 @@
 package dev.callai.ui
 
+import android.hardware.biometrics.BiometricManager
+import android.hardware.biometrics.BiometricPrompt
 import android.os.Bundle
+import android.os.CancellationSignal
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -27,6 +36,34 @@ sealed interface Screen {
 }
 
 class MainActivity : ComponentActivity() {
+    // Settings > Lock Kivi: notes are private conversations, so the app asks for your fingerprint or screen lock
+    // when opened, and again after a minute away.
+    private val unlocked = mutableStateOf(false)
+    private var leftAt = 0L
+    private var asking = false // a prompt is up: don't stack another; cancelling it leaves the Unlock button
+
+    override fun onResume() {
+        super.onResume()
+        if (!Settings.now.lock) unlocked.value = true
+        else if (!asking && (!unlocked.value || System.currentTimeMillis() - leftAt > 60_000)) { unlocked.value = false; unlock() }
+    }
+
+    override fun onPause() { super.onPause(); if (!asking) leftAt = System.currentTimeMillis() }
+
+    private fun unlock() {
+        val ways = BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        // No fingerprint and no screen lock set up: there is nothing to lock with, so don't lock you out.
+        if (getSystemService(BiometricManager::class.java).canAuthenticate(ways) != BiometricManager.BIOMETRIC_SUCCESS) {
+            unlocked.value = true; return
+        }
+        asking = true
+        BiometricPrompt.Builder(this).setTitle("Unlock Kivi").setAllowedAuthenticators(ways).build()
+            .authenticate(CancellationSignal(), mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { asking = false; unlocked.value = true }
+                override fun onAuthenticationError(code: Int, message: CharSequence) { asking = false }
+            })
+    }
+
     override fun onCreate(state: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(state)
@@ -39,7 +76,24 @@ class MainActivity : ComponentActivity() {
                 "live" -> add(Screen.Live)
             }
         }
-        setContent { KiviTheme { Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { App(start) } } }
+        setContent {
+            KiviTheme {
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    if (unlocked.value) App(start) else Locked(::unlock)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Locked(unlock: () -> Unit) {
+    Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        KiviBadge(Mood.OFF, 140.dp)
+        Text("Kivi is locked", Modifier.padding(top = 16.dp), style = MaterialTheme.typography.headlineSmall)
+        Text("Your call notes are private. Calls are still answered while it's locked.", Modifier.padding(top = 8.dp),
+            style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        FilledTonalButton(onClick = unlock, Modifier.padding(top = 20.dp).heightIn(min = 48.dp)) { Text("Unlock") }
     }
 }
 

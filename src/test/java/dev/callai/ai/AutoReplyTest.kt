@@ -1,6 +1,8 @@
 package dev.callai.ai
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -29,6 +31,15 @@ class AutoReplyTest {
     @Test fun `ordinary replies with times and short numbers still go out`() {
         assertTrue(text(reply = "Hi Suresh, got your message about the 6 pm match. Will get back to you."))
         assertTrue(text(reply = "Sare andi, message andindi. Tarvata call chesta."))
+    }
+    // wa.me needs the full international number, digits only.
+    @Test fun `WhatsApp links get the international number`() {
+        assertEquals("919848012345", waNumber("98480 12345"))
+        assertEquals("919848012345", waNumber("09848012345"))
+        assertEquals("919848012345", waNumber("+91 98480 12345"))
+        assertEquals("14155550100", waNumber("+1 415 555 0100"))
+        assertNull(waNumber("121"))
+        assertNull(waNumber(""))
     }
     @Test fun `at most one text per person every 12 hours`() {
         assertFalse(text(lastSent = now - 2 * hour))

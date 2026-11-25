@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
+import dev.callai.Daily
 import dev.callai.Notify
 import dev.callai.audio.Bridge
 import dev.callai.data.Settings
@@ -31,10 +32,13 @@ class DriveTile : TileService() {
 /** After a restart Shizuku is usually stopped, so Kivi can't answer until it's started again. */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED || Bridge.running()) return
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        Daily.schedule(ctx) // alarms don't survive a restart
+        if (Bridge.running()) return
         val c = Settings.now.config
         val anyMode = c.strangers || c.sleepSchedule || c.busyCalendar || c.carDevice.isNotBlank() ||
             listOf(c.sleepUntil, c.busyUntil, c.driveUntil, c.awayUntil).any { it > System.currentTimeMillis() }
-        if (anyMode) Notify.problem(ctx, "Start Shizuku so Kivi can answer", "Your phone restarted. Until Shizuku is running, every call rings normally.")
+        if (anyMode) Notify.problem(ctx, "Start Shizuku so Kivi can answer",
+            "Your phone restarted. Turn on Wireless debugging, then tap Start in Shizuku. Until then, every call rings normally.")
     }
 }

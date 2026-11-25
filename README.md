@@ -2,7 +2,7 @@
 
 Kivi is a personal AI call assistant for Android. When you can't pick up, it answers, talks with the caller in English, Telugu, Hindi, Kannada, Tamil or Malayalam (switching when they switch), and leaves you a note about who called and why, marked **Needs you**, **Handled** or **Blocked**.
 
-It runs on your own phone and number. It doesn't need root or call forwarding. Call audio goes through Shizuku, and the voice is Gemini Live on the free tier.
+It runs on your own phone and number. It doesn't need root or call forwarding. Call audio goes through Shizuku, and the voice is Gemini Live.
 
 ## Who reaches you
 
@@ -14,33 +14,65 @@ It runs on your own phone and number. It doesn't need root or call forwarding. C
 | **Drive** | Like Sleep. Runs on a timer, from the quick-settings tile, or when your car's Bluetooth connects. |
 | **Away** | Like Sleep, on a timer. |
 
+The home screen's "Right now" line says in one sentence who reaches you, including what happens when a mode ends. The home-screen widget shows the same and starts Busy for an hour, or ends a mode, in one tap.
+
 These callers always ring through:
-- people you add under Settings › Always ring through (favourites get no special pass);
-- anyone on their **3rd call in a row**, each within 10 minutes of the last. Calls 1 and 2 go to Kivi, which tells a saved contact who says it's urgent that one more call will reach you. After that ring the count starts over. Callers Kivi blocked never get through.
+- people you add under Settings › Always ring through;
+- anyone on their **3rd call in a row**, each within 10 minutes of the last. Calls 1 and 2 go to Kivi, which tells a saved contact who says it's urgent that one more call will reach you. Callers Kivi blocked never get through;
+- a second caller while Kivi is already on a call (you get a notification, and it still counts toward 3 in a row).
 
-Tap **unmute** in the dialer to take over a call; Kivi goes quiet.
+Tap **unmute** in the dialer to take over a call; Kivi goes quiet. During a call, the live screen lets you type what Kivi should say, listen in on the speaker, or step in.
 
-Kivi never answers into silence. If Shizuku, the key, internet or contacts access is missing, the phone just rings normally and you get a notification saying why. Settings › Diagnostics lists every check with a fix.
+Kivi never answers into silence. If Shizuku, the key, internet or contacts access is missing, the phone just rings and you get a notification saying why. Settings › Diagnostics lists every check with a fix, and a self-check runs every morning at 8 so you hear about a problem before a caller does.
+
+## What Kivi knows
+
+- **About you** (Settings › You): what you tell it. Saved contacts hear what helps them; strangers hear none of it.
+- **Instructions for particular people** (Settings › You): "Amma: tell her I'll call after 8".
+- For saved contacts only: whether your calendar shows you busy and until when, and the WhatsApp or SMS messages they sent you in the last 6 hours (read from notifications, kept in memory, never codes or OTPs).
+- The caller's earlier calls from the last two weeks, and today's date and time.
+- **FlyOS** (Settings › FlyOS, optional): your laptop's assistant gets every call note, and briefs Kivi while the phone rings.
 
 ## How it works
 
 | Piece | File | Job |
 |---|---|---|
 | Rules | `calls/Screening.kt` | A pure function that decides whether a call rings or goes to Kivi. Unit-tested. |
-| Call watcher | `calls/CallWatcher.kt` | A companion `InCallService`. It connects to Gemini while the phone rings and answers once everything is ready. If Gemini is slow, it waits up to 15 s longer, then lets the call ring through. It mutes your mic. |
-| Audio bridge | `audio/Audio.kt` | A Shizuku service running as the shell user. It records the caller (`VOICE_DOWNLINK`) and plays Kivi's voice into the call (`TELEPHONY_TX`). On every connect it re-registers Kivi with Telecom as a call companion and exempts Kivi from battery optimisation, since Android otherwise blocks Kivi's internet after a minute in the background. |
-| Voice | `ai/LiveSession.kt` | Gemini Live (`gemini-3.8-live-extended-thinking`) over a WebSocket. The model can't use tools, so Kivi ends calls by saying "Bye bye!", and the app listens for that. If the connection drops while the phone is still ringing, it tries again. If it drops mid-call, it reconnects once, then plays an apology (`ai/Fallback.kt`). |
-| Notes | `ai/Summary.kt` | After the call, a fast text model writes the note from the transcript. |
-| Storage | `data/` | Android's built-in SQLite (calls, recent rings, diagnostics log) and SharedPreferences (settings). |
-| Health | `Health.kt` | The checks that must pass before Kivi may answer. |
-| UI | `ui/` | Jetpack Compose with Material 3. Design notes are in `PRODUCT.md` and `DESIGN.md`. |
+| Call watcher | `calls/CallWatcher.kt` | A companion `InCallService`. It connects to Gemini while the phone rings and answers once everything is ready (up to 15 s more if Gemini is slow). It mutes your mic, handles a second caller, and keeps mobile data ready in case Wi-Fi fails mid-call. |
+| Audio bridge | `audio/Audio.kt` | A Shizuku service running as the shell user. It records the caller (`VOICE_DOWNLINK`) and plays Kivi's voice into the call (`TELEPHONY_TX`). On every connect it re-registers Kivi with Telecom and exempts it from battery optimisation; if the bridge dies, Kivi restarts it. |
+| Voice | `ai/LiveSession.kt` | Gemini Live (`gemini-3.8-live-extended-thinking`) over a WebSocket. If the line drops while the phone rings, it retries. Mid-call, the caller hears "one moment please" and Kivi reconnects for up to 20 s, resuming the same session when Gemini allows, over mobile data if Wi-Fi was the problem. At 2:30 Kivi starts wrapping up; at 3:00 the call ends. |
+| Network | `ai/Net.kt` | The Gemini socket: no read timeout, a ping every 10 s, mobile data as the fallback. |
+| Notes | `ai/Summary.kt` | After the call, a fast text model writes the note from the transcript, including the caller's language (which picks their voice next time) and any callback time (one tap to put it in your calendar). |
+| Replies | `ai/AutoReply.kt` | The drafted reply goes by SMS automatically (never with a link, long number or `@` handle) or by WhatsApp with one tap. |
+| Daily | `Daily.kt` | The 8 am self-check and the 9 pm summary. |
+| Storage | `data/` | SQLite (calls, recent rings, call metrics, diagnostics log) and SharedPreferences. The Gemini key and FlyOS token are sealed with the phone's hardware keystore. |
+| Health | `Health.kt`, `Metrics.kt` | The checks that must pass before Kivi may answer, and Diagnostics' "Last 7 days": answer rate, greeting speed, drops, how calls ended. |
+| UI | `ui/` | Jetpack Compose with Material 3. Settings › Privacy can lock the app with your fingerprint. Design notes are in `PRODUCT.md` and `DESIGN.md`. |
 
 ## Build, test, install (Windows)
 
 ```powershell
 $env:JAVA_HOME = "$env:LOCALAPPDATA\Android\jdk-21.0.13.1+2"
-& "$env:LOCALAPPDATA\Android\gradle-8.14.3\bin\gradle.bat" testDebugUnitTest installDebug
+& "$env:LOCALAPPDATA\Android\gradle-8.14.3\bin\gradle.bat" testDebugUnitTest installDebug   # debug build, with the test hooks
+& "$env:LOCALAPPDATA\Android\gradle-8.14.3\bin\gradle.bat" assembleRelease                  # small release build
 ```
+
+The release build is shrunk (about 3 MB) and signed with this PC's debug key, so it installs over a debug build and keeps your notes. To publish an update, attach the release APK to a GitHub release tagged `vX.Y`; Settings › Check for updates finds it.
+
+## Testing
+
+- **Unit tests** (`src/test`): the screening rules, replies, notes, summaries, metrics and more. `gradle testDebugUnitTest`.
+- **Phone suite** (`tools/calltest.sh`): rings the phone over the debug build's fake line and attacks Kivi: hidden callers, piled-up hang-ups, 3 in a row, no internet, internet back, mid-call drops of 6 s and 40 s, a killed bridge, picking up yourself, a second caller, and a recorded Telugu caller. Each prints PASS or FAIL; it cleans up after itself.
+- **Model tests** (`tools/livetest.mjs`, `tools/summarytest.mjs`): Kivi's real prompt and the note writer against hostile callers (prompt injection, the alarm trick, money scams, phishing links) and ordinary ones. Run them before changing a prompt or model: `cd tools && npm install && GEMINI_KEY=... node livetest.mjs`.
+- **Line check** (`tools/linecheck.mjs`): setup speed and ping replies from Gemini.
+- **Recorded callers** (`tools/make_caller.mjs`): makes a WAV of a caller's line for the fake line to play.
+
+## FlyOS link
+
+Kivi talks to FlyOS on your laptop over Tailscale, with the token as a bearer header:
+
+- `POST {address}/api/kivi/call`: each call note as JSON (time, number, name, reason, category, reply, transcript, duration_ms, language, callback_at, `"trust": "tainted"`).
+- `GET {address}/api/kivi/brief?number=…`: plain text about the caller, only what they may hear (it goes to Gemini), within 1.5 s; or 204.
 
 ## Things to know
 
@@ -49,7 +81,7 @@ $env:JAVA_HOME = "$env:LOCALAPPDATA\Android\jdk-21.0.13.1+2"
   - Revoking that permission avoids the crash: `adb shell pm revoke moe.shizuku.privileged.api android.permission.WRITE_SECURE_SETTINGS`. Then turn on Wireless debugging yourself and tap Start in Shizuku.
   - From a PC, this always works: `adb shell "$(adb shell pm path moe.shizuku.privileged.api | sed 's/package://;s/base.apk//')lib/arm64/libshizuku.so"`.
 - **If a call rang through,** Diagnostics → Recent activity says why.
-- **Testing calls without a second phone:** debug builds include a fake phone line (`src/debug/.../FakeCarrier.kt`, never in release). It rings the phone through the real Telecom path from a PC, and also adds worst-case notes for checking the screens. The commands are at the top of that file. Unregister the line afterwards, or the dialer offers "Fake" for outgoing calls.
-- **Auto-reply texts** never contain links, long numbers or `@` handles, whatever a caller says (`ai/AutoReply.kt`).
-- **Free tier:** Google may use call audio to improve its products. Notes stay on the phone.
+- **Testing calls without a second phone:** debug builds include a fake phone line (`src/debug/.../FakeCarrier.kt`, never in release). `tools/calltest.sh` drives it; if you ring it by hand, unregister the line afterwards, or the dialer offers "Fake" for outgoing calls.
+- **Free tier:** Google may use call audio to improve its products; a paid key (billing on) keeps calls out of that. Notes and recordings stay on the phone.
+- **Call recording** is off by default. When on, Kivi tells callers the call is recorded.
 - **If callers can't hear Kivi,** set `MUTE_MIC = false` in `calls/CallWatcher.kt`.

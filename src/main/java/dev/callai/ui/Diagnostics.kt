@@ -1,5 +1,6 @@
 package dev.callai.ui
 
+import android.content.ComponentName
 import android.content.Intent
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.*
@@ -19,6 +20,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import dev.callai.Fix
 import dev.callai.Health
+import dev.callai.calls.MessageListener
+import dev.callai.weekly
 import dev.callai.ai.LiveSession
 import dev.callai.ai.Summary
 import kotlin.concurrent.thread
@@ -34,6 +37,7 @@ fun DiagnosticsScreen(go: (Screen) -> Unit, back: () -> Unit) {
     val tick = ticker(2_000)
     val checks = remember(tick) { Health.checks(ctx) }
     val events = remember(tick) { Store.events() }
+    val week = remember(tick) { weekly(Store.metrics(System.currentTimeMillis() - 7 * 86_400_000L)) }
     val ask = rememberPermissionAsker()
     var gemini by remember { mutableStateOf<String?>(null) }
 
@@ -69,6 +73,9 @@ fun DiagnosticsScreen(go: (Screen) -> Unit, back: () -> Unit) {
                                 Fix.ALLOW_SHIZUKU -> if (Bridge.running()) Shizuku.requestPermission(1)
                                 Fix.PERMISSIONS -> ask()
                                 Fix.ADD_KEY -> go(Screen.Settings)
+                                Fix.MESSAGES -> ctx.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                                    .putExtra(android.provider.Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+                                        ComponentName(ctx, MessageListener::class.java).flattenToString()))
                                 Fix.NONE -> Unit
                             }
                         }) { Text("Fix") }
@@ -88,6 +95,10 @@ fun DiagnosticsScreen(go: (Screen) -> Unit, back: () -> Unit) {
                     }
                     gemini?.let { Text(it, Modifier.padding(start = 12.dp), style = MaterialTheme.typography.bodyMedium) }
                 }
+            }
+            if (week.isNotEmpty()) {
+                item { SectionTitle("Last 7 days") }
+                items(week) { Text(it, Modifier.padding(horizontal = 20.dp, vertical = 4.dp), style = MaterialTheme.typography.bodyMedium) }
             }
             item { SectionTitle("Recent activity") }
             if (events.isEmpty()) item { Text("Nothing yet.", Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }

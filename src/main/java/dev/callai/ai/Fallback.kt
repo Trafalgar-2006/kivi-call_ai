@@ -7,6 +7,7 @@ import android.speech.tts.UtteranceProgressListener
 import dev.callai.audio.Audio
 import dev.callai.audio.OUT_RATE
 import java.io.File
+import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Locale
@@ -50,6 +51,30 @@ object Fallback {
         while (wait && audio.isPlaying() && SystemClock.uptimeMillis() < deadline) Thread.sleep(150)
     }
 }
+
+/** Writes 16-bit mono PCM as a WAV file as it arrives; close() fills in the header's sizes. Thread-safe. */
+class WavWriter(val file: File, private val rate: Int) {
+    private val out = RandomAccessFile(file.apply { parentFile?.mkdirs() }, "rw").apply { setLength(0); write(ByteArray(44)) }
+    private var bytes = 0
+    private var closed = false
+
+    @Synchronized fun write(pcm: ByteArray) { if (!closed) { out.write(pcm); bytes += pcm.size } }
+
+    @Synchronized fun close() {
+        if (closed) return
+        closed = true
+        out.seek(0)
+        out.write(wavHeader(bytes, rate))
+        out.close()
+    }
+}
+
+/** The 44-byte header of a 16-bit mono PCM WAV holding [dataBytes] bytes of samples. */
+fun wavHeader(dataBytes: Int, rate: Int): ByteArray = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN).apply {
+    put("RIFF".toByteArray()); putInt(36 + dataBytes); put("WAVE".toByteArray())
+    put("fmt ".toByteArray()); putInt(16); putShort(1); putShort(1); putInt(rate); putInt(rate * 2); putShort(2); putShort(16)
+    put("data".toByteArray()); putInt(dataBytes)
+}.array()
 
 /** 16-bit mono WAV → (sample rate, samples). Null if it isn't one. */
 fun readWav(bytes: ByteArray): Pair<Int, ShortArray>? {

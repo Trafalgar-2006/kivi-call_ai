@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import dev.callai.calls.contactName
 import dev.callai.calls.sameNumber
 import dev.callai.data.Settings
+import dev.callai.data.THINKING
 import dev.callai.data.Store
 
 // Indian English voices from Google's voice library, each checked to work in live calls. Top row women, bottom row men.
@@ -50,7 +51,7 @@ fun SettingsScreen(go: (Screen) -> Unit, back: () -> Unit) {
     }) { pad ->
         Column(Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
             SectionTitle("You")
-            Column(Modifier.padding(horizontal = 20.dp)) { AboutYouFields() }
+            Column(Modifier.padding(horizontal = 20.dp)) { AboutYouFields(); PeopleRules() }
 
             SectionTitle("Answering")
             Column(Modifier.padding(horizontal = 20.dp)) {
@@ -79,6 +80,14 @@ fun SettingsScreen(go: (Screen) -> Unit, back: () -> Unit) {
                 Text("After a call, Kivi's drafted reply goes out by SMS from your number. Never to spam or hidden numbers, at most once every 12 hours per person.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
+                Toggle("Use recent messages as context", prefs.useMessages) { on -> Settings.update { it.copy(useMessages = on) } }
+                Text("When a saved contact calls, Kivi sees the WhatsApp or SMS messages they sent you in the last 6 hours (never codes or OTPs). Needs notification access: see Diagnostics.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                Toggle("Record the caller's side", prefs.record) { on -> Settings.update { it.copy(record = on) } }
+                Text("Kivi tells callers the call is recorded. Recordings stay on this phone and are deleted with their note.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
                 Text("Your car", Modifier.padding(top = 24.dp, bottom = 4.dp), style = MaterialTheme.typography.bodyLarge)
                 CarPicker(prefs.config.carDevice)
             }
@@ -95,10 +104,29 @@ fun SettingsScreen(go: (Screen) -> Unit, back: () -> Unit) {
                 Choice(VOICES.drop(3), prefs.voice) { v -> Settings.update { it.copy(voice = v) } }
                 Text("Real Indian English voices. Top row: women's voices, bottom row: men's. Try one with Settings › Test call.", Modifier.padding(top = 4.dp),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                LanguageVoices()
+                Text("Thinking", Modifier.padding(top = 20.dp), style = MaterialTheme.typography.bodyLarge)
+                Choice(THINKING, prefs.thinking) { t -> Settings.update { it.copy(thinking = t) } }
+                Text("Quick replies faster; Deep understands unclear or mixed-language speech better but pauses longer.",
+                    Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             SectionTitle("Gemini")
-            Column(Modifier.padding(horizontal = 20.dp)) { KeyField() }
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                KeyField()
+                Text("With a free key, Google may use call audio to improve its products. A paid key (billing on) keeps your calls out of that.",
+                    Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            SectionTitle("Privacy")
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                Toggle("Lock Kivi", prefs.lock) { on -> Settings.update { it.copy(lock = on) } }
+                Text("Asks for your fingerprint or screen lock to open Kivi. Calls are still answered while it's locked.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            SectionTitle("FlyOS")
+            Column(Modifier.padding(horizontal = 20.dp)) { FlyOSFields() }
 
             SectionTitle("Notes")
             Column(Modifier.padding(horizontal = 20.dp)) {
@@ -106,11 +134,14 @@ fun SettingsScreen(go: (Screen) -> Unit, back: () -> Unit) {
                 Choice(listOf(30 to "30 days", 90 to "90 days", 365 to "1 year", 0 to "Always"), prefs.keepDays) { d ->
                     Settings.update { it.copy(keepDays = d) }; Store.prune(d)
                 }
+                Toggle("Evening summary at 9 pm", prefs.digest) { on -> Settings.update { it.copy(digest = on) } }
+                ExportNotes()
                 OutlinedButton(onClick = { confirmDelete = true }, Modifier.padding(top = 12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete all notes") }
             }
 
             SectionTitle("Help")
+            UpdateCheck()
             Link("Test call", "Hear what callers hear, on the speaker") { go(Screen.Test) }
             Link("Diagnostics", "What's working, what isn't, and recent activity") { go(Screen.Diagnostics) }
             Link("Run setup again", "Shizuku, permissions, key and a test call") { Settings.update { it.copy(onboarded = false) } }
@@ -126,7 +157,7 @@ fun SettingsScreen(go: (Screen) -> Unit, back: () -> Unit) {
 }
 
 @Composable
-private fun <T> Choice(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
+fun <T> Choice(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
         options.forEachIndexed { i, (value, label) ->
             SegmentedButton(selected = value == selected, onClick = { onSelect(value) },

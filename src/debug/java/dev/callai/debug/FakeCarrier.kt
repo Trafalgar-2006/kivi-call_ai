@@ -12,8 +12,15 @@ import android.telecom.ConnectionService
 import android.telecom.DisconnectCause
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
+import dev.callai.ai.readWav
+import dev.callai.ai.resample
+import dev.callai.audio.Audio
+import dev.callai.calls.TestHooks
 import dev.callai.data.CallNote
 import dev.callai.data.Store
+import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import kotlin.concurrent.thread
 
 /*
@@ -23,6 +30,7 @@ import kotlin.concurrent.thread
  *   C=dev.callai/dev.callai.debug.FakeCarrier
  *   adb shell telecom register-phone-account $C fake 0 Fake && adb shell telecom set-phone-account-enabled $C fake 0
  *   adb shell am broadcast -n dev.callai/.debug.FakeCall --es number 40001   # ring (no number: a hidden caller)
+ *       add --es audio caller.wav [--ei delay 5]: a recorded caller (tools/make_caller.mjs) speaks after the greeting
  *   adb shell am broadcast -n dev.callai/.debug.FakeCall --es do hangup      # the newest caller hangs up (hangup-all: every one)
  *   adb shell am broadcast -n dev.callai/.debug.FakeCall --es do fixture     # worst-case notes for the screens (fixture-huge: 1,000)
  *   adb shell am broadcast -n dev.callai/.debug.FakeCall --es do clean --el since <ms>   # delete test notes (hidden ones since <ms>)
@@ -79,6 +87,33 @@ private fun worstCase(now: Long) = listOf(
         category = "handled", reply = "Haan Amma, message andindi 😊", transcript = "Caller: Tinnava?", durationMs = 45_000, mode = "BUSY"),
 )
 
+/**
+ * A recorded caller for fake calls: [delaySec] of silence (Kivi greets), then the WAV at real-time pace, then silence
+ * until the call ends. Kivi's own audio is dropped; its words show in the transcript.
+ */
+class WavCaller(file: File, private val delaySec: Int) : Audio {
+    private val pcm: ByteArray = readWav(file.readBytes())?.let { (rate, samples) ->
+        val s = resample(samples, rate, 16_000)
+        ByteBuffer.allocate(s.size * 2).order(ByteOrder.LITTLE_ENDIAN).also { b -> s.forEach { b.putShort(it) } }.array()
+    } ?: ByteArray(0).also { Store.log("Fake line: ${file.name} isn't a 16-bit mono WAV") }
+    @Volatile private var running = true
+
+    override fun startCapture(onPcm: (ByteArray) -> Unit) {
+        thread(name = "wav-caller") {
+            val chunk = 3200 // 100 ms
+            val silence = ByteArray(chunk)
+            repeat(delaySec * 10) { if (!running) return@thread; onPcm(silence); Thread.sleep(100) }
+            var i = 0
+            while (running && i < pcm.size) { onPcm(pcm.copyOfRange(i, minOf(i + chunk, pcm.size))); i += chunk; Thread.sleep(100) }
+            while (running) { onPcm(silence); Thread.sleep(100) }
+        }
+    }
+    override fun play(gen: Int, pcm: ByteArray) = Unit
+    override fun flush(gen: Int) = Unit
+    override fun isPlaying() = false
+    override fun stop() { running = false }
+}
+
 class FakeCall : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         when (intent.getStringExtra("do")) {
@@ -102,6 +137,8 @@ class FakeCall : BroadcastReceiver() {
             else -> {
                 val number = intent.getStringExtra("number").orEmpty()
                 if (number.isNotEmpty() && !number.startsWith(TEST_PREFIX)) return Store.log("Fake line: refused $number, test numbers start $TEST_PREFIX")
+                // --es audio caller.wav: a recorded caller (a WAV in Kivi's files folder) speaks after Kivi's greeting.
+                TestHooks.callerAudio = intent.getStringExtra("audio")?.let { WavCaller(File(ctx.filesDir, it), intent.getIntExtra("delay", 5)) }
                 val handle = PhoneAccountHandle(ComponentName(ctx, FakeCarrier::class.java), "fake")
                 ctx.getSystemService(TelecomManager::class.java).addNewIncomingCall(handle, Bundle().apply {
                     putString(NUMBER, number)

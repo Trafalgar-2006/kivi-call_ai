@@ -11,6 +11,8 @@ import dev.callai.audio.Audio
 import dev.callai.calls.Caller
 import dev.callai.calls.Mode
 import dev.callai.calls.Outcome
+import dev.callai.calls.Messages
+import dev.callai.calls.busyUntil
 import dev.callai.calls.sameNumber
 import dev.callai.Emergency
 import dev.callai.data.CATEGORY_LABELS
@@ -19,7 +21,6 @@ import dev.callai.data.Settings
 import dev.callai.data.Store
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -28,10 +29,10 @@ import okio.ByteString
 import org.json.JSONArray
 import org.json.JSONObject
 import dev.callai.audio.CallAudio
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 // Extended thinking: reasons harder about unclear, accented speech. Its tool calls fail on Google's side
@@ -44,14 +45,6 @@ private const val CONNECT_TIMEOUT_MS = 5_000L // setup normally completes in und
 private const val RECONNECT_MS = 20_000L      // mid-call, how long Kivi keeps the caller holding while it reconnects
 private const val NO_SPEECH = "<no speech>"   // Gemini's transcript placeholder, not words anyone said
 private val LANGUAGE_CODES = mapOf("Telugu" to "te", "Hindi" to "hi", "English" to "en", "Kannada" to "kn", "Tamil" to "ta", "Malayalam" to "ml")
-// OkHttp's default 10 s read timeout killed live calls whenever Gemini was quiet for 10 s (the caller pausing).
-// No read timeout on the socket; a ping every 10 s keeps the line alive and notices a dead one within 10–20 s
-// (Gemini answers pings in about 0.1 s).
-private val http = OkHttpClient.Builder()
-    .readTimeout(0, TimeUnit.MILLISECONDS)
-    .pingInterval(10, TimeUnit.SECONDS)
-    .build()
-
 data class Line(val fromCaller: Boolean, val text: String)
 
 private fun String.cap(max: Int) = if (length <= max) this else take(max - 1).trimEnd() + "…"
@@ -98,18 +91,27 @@ class LiveSession(
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var outageUntil = 0L // mid-call, the line dropped: keep reconnecting until then
     private var resuming = false
+    // Gemini sends a fresh handle now and then; reconnecting with it resumes the same session, context and all.
+    @Volatile private var resumeHandle: String? = null
+    private var usedHandle = false
     @Volatile private var lastActivity = 0L // last time either side said anything
     // Safety net: if the model says goodbye but never calls hang_up, the call still ends.
     private val silenceCheck = object : Runnable {
         override fun run() {
             if (done) return
-            if (outageUntil == 0L && SystemClock.uptimeMillis() - lastActivity > SILENCE_HANGUP_MS && audio?.isPlaying() != true) {
+            val quiet = SystemClock.uptimeMillis() - lastActivity
+            // "Still playing" can stick when a line never takes Kivi's audio; 15 s more of it can't be real speech.
+            if (outageUntil == 0L && quiet > SILENCE_HANGUP_MS && (audio?.isPlaying() != true || quiet > SILENCE_HANGUP_MS + 15_000)) {
                 Store.log("Hung up after ${SILENCE_HANGUP_MS / 1000} s of silence")
-                kiviHungUp = true
+                kiviHungUp = true; endReason = "silence"
                 stop(byAssistant = true)
             } else main.postDelayed(this, 2000)
         }
     }
+    @Volatile private var endReason = "caller"           // why the call ended, for the health panel
+    private var recording: WavWriter? = null              // the caller's audio, when you turned recording on
+    @Volatile private var flyosBrief: String? = null      // what FlyOS knows about this caller, fetched before connecting
+    private var briefAsked = false
     @Volatile private var emergency: String? = null      // set when Kivi raises the alarm
     @Volatile private var forcedCategory: String? = null // you said "block" mid-call
     private var notifiedAt = 0L
@@ -119,10 +121,13 @@ class LiveSession(
 
     /** You marked the caller as spam: Kivi says goodbye, and the call ends within 12 s whatever happens. */
     fun block(text: String) {
-        forcedCategory = "blocked"
+        forcedCategory = "blocked"; endReason = "blocked"
         direct(text)
         main.postDelayed({ stop(byAssistant = true) }, 12_000)
     }
+
+    /** You typed words for Kivi to say to the caller (live screen). */
+    fun say(words: String) = direct("(${Settings.now.owner.substringBefore(' ').ifBlank { "The owner" }} asks you to tell the caller: \"$words\". Say it naturally, in the caller's language.)")
 
     private val who get() = caller.name ?: caller.number.ifBlank { "a hidden number" }
 
@@ -136,7 +141,15 @@ class LiveSession(
     }
 
     fun connect() {
-        val socket = http.newWebSocket(Request.Builder().url(URL + Settings.now.key).build(), this)
+        // FlyOS's brief must be in the setup message, so fetch it first (1.5 s at most; the phone rings for 5).
+        if (!briefAsked && record && FlyOS.configured()) {
+            briefAsked = true
+            thread(name = "flyos-brief") { flyosBrief = FlyOS.brief(caller.number); main.post { if (!done) connect() } }
+            return
+        }
+        val (client, via) = Net.client(ctx, afterFailure = failures > 0 || outageUntil != 0L)
+        if (via != null) Store.log("Connecting to Gemini over $via")
+        val socket = client.newWebSocket(Request.Builder().url(URL + Settings.now.key).build(), this)
         ws = socket
         // With no read timeout a handshake can hang forever instead of failing; cancel it (onFailure tries again).
         main.postDelayed({ if (ws === socket && !ready) socket.cancel() }, CONNECT_TIMEOUT_MS)
@@ -153,10 +166,13 @@ class LiveSession(
             val now = SystemClock.uptimeMillis()
             if ((begun || canRetry) && (outageUntil == 0L || now < outageUntil)) {
                 ready = false
+                // Retire the old socket first, so its own failure callback can't start a second reconnect.
+                val old = ws; ws = null; old?.cancel()
                 var delay = 1000L
                 if (begun && outageUntil == 0L) { // a new outage mid-call: reconnect straight away
                     outageUntil = now + RECONNECT_MS; resuming = true; delay = 0
                     Store.log("$why; reconnecting")
+                    if (record) Store.metric("drop")
                     _talking.value = false
                     audio?.let { a -> val g = ++gen; thread { Fallback.play(ctx, a, g, Fallback.HOLD, wait = false) } }
                 } else if (!begun && failures++ == 0) Store.log("$why; trying again")
@@ -178,12 +194,16 @@ class LiveSession(
         main.postDelayed(silenceCheck, 2000)
         if (record) current.value = this
         updateLive(force = true)
+        if (record && Settings.now.record) recording = runCatching { WavWriter(File(ctx.filesDir, "recordings/$startedAt.wav"), 16_000) }.getOrNull()
         if (ready) talk()
-        main.postDelayed({ stop(byAssistant = true) }, MAX_CALL_MS)
+        // A warning 30 s before the 3-minute limit, so the call ends with a goodbye instead of a cut.
+        main.postDelayed({ direct("(About 30 seconds are left in this call. Wrap up now: read back the message, ask if there's anything else, then say goodbye ending with \"Bye bye!\".)") }, MAX_CALL_MS - 30_000)
+        main.postDelayed({ endReason = "time limit"; stop(byAssistant = true) }, MAX_CALL_MS)
     }
 
-    fun stop(byAssistant: Boolean = false) {
+    fun stop(byAssistant: Boolean = false, why: String? = null) {
         synchronized(this) { if (done) return; done = true }
+        why?.let { endReason = it }
         // Cancel a handshake still in progress: left alone it holds one of OkHttp's 5 connections to Google, and once
         // all 5 are stuck no call can reach Gemini until the app restarts.
         ws?.let { if (ready) it.close(1000, null) else it.cancel() }
@@ -194,6 +214,8 @@ class LiveSession(
             if (a != null && error != null && record) Fallback.play(ctx, a, ++gen)
             runCatching { a?.stop() }
             if (a is CallAudio) Store.log(a.levels())
+            recording?.let { runCatching { it.close() } }
+            if (begun && record) Store.metric("ended:" + if (error != null) "error" else endReason)
             _talking.value = false
             if (current.value === this) current.value = null
             if (record) Notify.endLive(ctx)
@@ -229,10 +251,14 @@ class LiveSession(
             transcript = transcript,
             durationMs = System.currentTimeMillis() - startedAt,
             mode = mode.name,
+            language = n?.optString("language").orEmpty().takeIf { it in CALLER_LANGUAGES }.orEmpty(),
+            callbackAt = parseCallback(n?.optString("callback_at").orEmpty(), System.currentTimeMillis()),
+            audio = recording?.file?.takeIf { it.exists() && it.length() > 44 }?.path.orEmpty(),
         )
         Store.judged(caller.number, saved.category)
         val id = Store.add(saved)
         Notify.call(ctx, saved.copy(id = id))
+        FlyOS.send(saved) // no-op unless you linked FlyOS
         val now = System.currentTimeMillis()
         if (shouldText(saved.category, saved.number, saved.reply, Settings.now.autoReply, Store.lastSent(saved.number), now) &&
             AutoReply.send(ctx, saved.number, saved.reply)) {
@@ -252,6 +278,7 @@ class LiveSession(
     private fun talk() {
         cue("(The call just connected. Answer warmly in Indian English, in one short breath.)")
         audio?.startCapture { pcm ->
+            recording?.write(pcm)
             send(JSONObject().put("realtimeInput", JSONObject().put("audio", JSONObject()
                 .put("data", Base64.encodeToString(pcm, Base64.NO_WRAP))
                 .put("mimeType", "audio/pcm;rate=16000"))))
@@ -263,14 +290,31 @@ class LiveSession(
         .put("turns", JSONArray().put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", text)))))
         .put("turnComplete", true)))
 
+    /** Gemini warned it will close this session soon: move to a fresh one now, resumed, with no hold message. */
+    private fun switchSession() {
+        synchronized(this) {
+            if (done || !begun || outageUntil != 0L) return
+            outageUntil = SystemClock.uptimeMillis() + RECONNECT_MS; resuming = true; ready = false
+            val old = ws; ws = null; old?.close(1000, null)
+        }
+        Store.log("Gemini is closing the session soon; switching to a fresh one")
+        connect()
+    }
+
     @Synchronized private fun handle(m: JSONObject) {
         if (done) return
+        m.optJSONObject("sessionResumptionUpdate")?.let { u ->
+            if (u.optBoolean("resumable")) u.optString("newHandle").takeIf { it.isNotBlank() }?.let { resumeHandle = it }
+        }
+        if (m.has("goAway")) main.post { switchSession() }
         if (m.has("setupComplete")) {
             ready = true; onReady?.invoke()
             when {
                 !begun -> Unit
                 resuming -> {
-                    Store.log("Back on the line after %.1f s".format((SystemClock.uptimeMillis() - outageUntil + RECONNECT_MS) / 1000.0))
+                    val gap = (SystemClock.uptimeMillis() - outageUntil + RECONNECT_MS) / 1000.0
+                    Store.log("Back on the line after %.1f s%s".format(gap, if (usedHandle) ", same session" else ""))
+                    if (record) Store.metric("resumed", gap)
                     resuming = false; outageUntil = 0; lastActivity = SystemClock.uptimeMillis()
                     cue("(The line dropped for a few seconds and is back. Say a brief sorry and continue where you left off. Don't greet again.)")
                 }
@@ -283,7 +327,8 @@ class LiveSession(
                 part.optJSONObject("inlineData")?.optString("data")?.let {
                     if (firstAudioAt == 0L && begun) {
                         firstAudioAt = SystemClock.uptimeMillis()
-                        if (record) Store.log("Greeting started %.1f s after answering".format((firstAudioAt - beganAt) / 1000.0))
+                        val secs = (firstAudioAt - beganAt) / 1000.0
+                        if (record) { Store.log("Greeting started %.1f s after answering".format(secs)); Store.metric("greeting", secs) }
                     }
                     _talking.value = true
                     lastActivity = SystemClock.uptimeMillis()
@@ -314,6 +359,7 @@ class LiveSession(
     private fun hangUpAfterGoodbye() {
         if (kiviHungUp) return
         kiviHungUp = true
+        if (endReason == "caller") endReason = "goodbye"
         thread { // let the goodbye finish playing first
             val deadline = SystemClock.uptimeMillis() + 8000
             while (audio?.isPlaying() == true && SystemClock.uptimeMillis() < deadline) Thread.sleep(200)
@@ -326,7 +372,11 @@ class LiveSession(
         val reason = _lines.value.lastOrNull { it.fromCaller }?.text?.take(120).orEmpty().ifBlank { "The caller reported an emergency" }
         emergency = reason
         Store.log("Emergency raised by $who")
-        if (record) { Emergency.sound(ctx); Notify.emergency(ctx, who, reason, live = true) }
+        if (record) {
+            if (Emergency.allow(caller.number, System.currentTimeMillis())) Emergency.sound(ctx)
+            else Store.log("Alarm not repeated: $who raised one in the last 30 minutes")
+            Notify.emergency(ctx, who, reason, live = true)
+        }
     }
 
     // The caller's words arrive separately and unordered: interim guesses while they speak, then final segments.
@@ -374,8 +424,15 @@ class LiveSession(
     override fun onMessage(webSocket: WebSocket, text: String) { if (webSocket === ws) handle(JSONObject(text)) }
     override fun onMessage(webSocket: WebSocket, bytes: ByteString) { if (webSocket === ws) handle(JSONObject(bytes.utf8())) }
     override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+        if (webSocket !== ws) return
+        // A refused resume (an expired handle) must not repeat: the next try sends the conversation instead.
+        if (usedHandle && !ready) resumeHandle = null
+        // A language voice Gemini won't take must not cost the call: retry at once with your main voice.
+        val tried = voice()
+        val badVoice = !ready && tried != Settings.now.voice
+        if (badVoice) { voiceRefused = true; Store.log("Gemini refused the voice $tried; using your main voice") }
         // 1011/1013: Google is busy, worth another try. Anything else (bad key, bad setup) won't fix itself.
-        if (webSocket === ws) lost("Gemini closed the session ($code: ${reason.ifBlank { "no reason given" }})", canRetry = code == 1011 || code == 1013)
+        lost("Gemini closed the session ($code: ${reason.ifBlank { "no reason given" }})", canRetry = badVoice || code == 1011 || code == 1013)
     }
     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
         if (webSocket === ws) lost("the line to Gemini dropped (${response?.code?.let { "HTTP $it, " }.orEmpty()}${t.message ?: t.javaClass.simpleName})",
@@ -385,13 +442,18 @@ class LiveSession(
     private fun setup(): JSONObject {
         val generation = JSONObject().put("responseModalities", JSONArray().put("AUDIO"))
             // The extended-thinking model refuses sessions without a level; medium still greets in ~1 s.
-            .put("thinkingConfig", JSONObject().put("thinkingLevel", "medium"))
+            .put("thinkingConfig", JSONObject().put("thinkingLevel", Settings.now.thinking))
             .put("speechConfig", JSONObject().put("voiceConfig", JSONObject()
-                .put("prebuiltVoiceConfig", JSONObject().put("voiceName", Settings.now.voice))))
+                .put("prebuiltVoiceConfig", JSONObject().put("voiceName", voice()))))
+        // A fresh session never asks for resumption (Gemini sends handles anyway), so this can't break a first connect.
+        val handle = if (resuming) resumeHandle else null
+        usedHandle = handle != null
         return JSONObject().put("setup", JSONObject()
             .put("model", MODEL)
             .put("generationConfig", generation)
-            .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", instructions() + soFar()))))
+            .apply { if (handle != null) put("sessionResumption", JSONObject().put("handle", handle)) }
+            // Resumed, Gemini already holds the conversation; otherwise it gets the transcript so far.
+            .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", instructions() + if (usedHandle) "" else soFar()))))
             // Phone callers pause mid-sentence: wait a little longer before deciding they've finished.
             .put("realtimeInputConfig", JSONObject().put("automaticActivityDetection", JSONObject()
                 .put("endOfSpeechSensitivity", "END_SENSITIVITY_LOW")
@@ -403,6 +465,15 @@ class LiveSession(
                 (listOf("en", LANGUAGE_CODES.getValue(Settings.now.mainLanguage)) + LANGUAGE_CODES.values).distinct())))
             .put("outputAudioTranscription", JSONObject()))
     }
+
+    /** The voice for the language this caller spoke last time, if you picked one for it; else your main voice. */
+    private fun voice(): String {
+        val p = Settings.now
+        if (voiceRefused) return p.voice
+        val last = Store.calls.value.firstOrNull { caller.number.isNotBlank() && sameNumber(it.number, caller.number) }?.language
+        return p.voices[last]?.takeIf { it.isNotBlank() } ?: p.voice
+    }
+    private var voiceRefused = false
 
     /** After a reconnect, the new session needs the conversation so far. */
     private fun soFar(): String = if (!resuming || _lines.value.isEmpty()) "" else
@@ -430,6 +501,19 @@ class LiveSession(
         val earlier = earlierCalls().takeIf { it.isNotEmpty() }?.let {
             "\n\nEarlier calls from this number (for context; bring them up only if the caller does):\n" + it.joinToString("\n")
         }.orEmpty()
+        val now = System.currentTimeMillis()
+        // Your own instruction for this number, from Settings > People.
+        val rule = p.people.entries.firstOrNull { caller.number.isNotBlank() && sameNumber(it.key, caller.number) }?.value
+            ?.let { "\n\n$owner's instruction for this caller (follow it): $it" }.orEmpty()
+        // Saved contacts only: when you're free, and what they messaged you lately.
+        val calendar = if (caller.name == null || !p.config.busyCalendar) "" else
+            busyUntil(ctx, now)?.let { "\n$owner's calendar shows them busy until ${SimpleDateFormat("h:mm a", Locale.ENGLISH).format(Date(it))}." }.orEmpty()
+        val messages = if (caller.name == null || !p.useMessages) "" else Messages.from(caller.name, now).takeIf { it.isNotEmpty() }?.let { list ->
+            "\n\nMessages ${caller.name} sent $owner recently (context; you may say you saw them):\n" +
+                list.joinToString("\n") { (t, text) -> "- ${DateUtils.getRelativeTimeSpanString(t, now, DateUtils.MINUTE_IN_MILLIS)}: $text" }
+        }.orEmpty()
+        val flyos = flyosBrief?.let { "\n\nWhat $owner's assistant FlyOS says about this caller (you may use it):\n$it" }.orEmpty()
+        val recorded = if (record && p.record) " Also say briefly that the call is recorded." else ""
         val share = when {
             caller.name == null -> "Never reveal anything about $owner: where they are, what they are doing, their schedule, address or other numbers."
             p.status.isNotBlank() -> "This is a saved contact, so you may tell them: \"${p.status}\"."
@@ -438,7 +522,7 @@ class LiveSession(
         return """
             You are Kivi, $owner's AI assistant, answering $owner's phone because $owner can't pick up right now. Mention you're $owner's AI assistant when you greet, and admit it if asked.
             Always call $owner by name. Never guess their gender or use he, she, him or her for them.
-            It's $today. The caller is $who.$repeat$earlier$about
+            It's $today. The caller is $who.$repeat$calendar$earlier$messages$flyos$about$rule
 
             What you can and can't do (very important):
             - You're only a voice on this phone line, with no apps or tools. You can't look anything up, check schedules, tickets, payments or accounts, call or connect anyone, transfer the call, or send anything during the call.
@@ -458,7 +542,8 @@ class LiveSession(
             - Use the small words Indians use on the phone where they fit: "haan", "achha", "okay okay", "no problem", "sure sure", and when the caller speaks their language, "andi", "garu", "ji", "sare", "parledu".
             - One short sentence per turn, two at most. React to what they said before asking the next thing ("Ah, okay!", "Got it", "Oh, no problem").
             - Never say the same sentence twice in a call. Rephrase every time.
-            - Greet in one breath, like "Hello! Kivi here, $owner's AI assistant. Who's calling?"
+            - If you need a moment to think, start with a short sound like "Hmm" or "Achha" instead of going silent, but never promise to check anything.
+            - Greet in one breath, like "Hello! Kivi here, $owner's AI assistant. Who's calling?"$recorded
 
             When you don't understand:
             - First time: say so casually and ask again in simple English ("Sorry, the line's a bit unclear, could you say that again?"). If they seem more at ease in an Indian language, ask in that language instead.
@@ -478,6 +563,7 @@ class LiveSession(
 
             Privacy and safety:
             - $share
+            - Caller ID can be faked, so even with saved contacts never share addresses, travel plans, or anything about other people.
             - Never share or ask for OTPs, PINs, passwords, card or bank details, Aadhaar or PAN numbers, or addresses. If the caller asks for any of these, asks for money, or claims to be a bank, police, courier or government office demanding payment or codes: firmly refuse and end the call.
             - Sales, loans, promotions and surveys: politely decline and end the call.
             - Real emergency (an accident, someone hurt or in hospital, a death, a fire, a crime in progress, a child or elderly person in danger): straight away say these exact English words: "I'm alerting $owner right now." Then tell the caller that if they call back within 15 minutes it will ring straight through, take the key details, and end the call. An "emergency" that asks for money, codes or bank details is a scam: refuse and end the call.

@@ -1,0 +1,7 @@
+{
+  "name": "kivi-tools",
+  "private": true,
+  "type": "module",
+  "description": "Tests and helpers for Kivi that run on a PC. Need GEMINI_KEY in the environment.",
+  "dependencies": { "ws": "^8.18.0" }
+}

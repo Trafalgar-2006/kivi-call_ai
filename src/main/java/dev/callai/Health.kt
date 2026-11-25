@@ -8,9 +8,10 @@ import android.net.NetworkCapabilities
 import android.os.PowerManager
 import dev.callai.audio.Bridge
 import dev.callai.calls.CallWatcher
+import dev.callai.calls.MessageListener
 import dev.callai.data.Settings
 
-enum class Fix { OPEN_SHIZUKU, ALLOW_SHIZUKU, PERMISSIONS, ADD_KEY, NONE }
+enum class Fix { OPEN_SHIZUKU, ALLOW_SHIZUKU, PERMISSIONS, ADD_KEY, MESSAGES, NONE }
 
 fun granted(ctx: Context, perm: String) = ctx.checkSelfPermission(perm) == PackageManager.PERMISSION_GRANTED
 
@@ -38,6 +39,8 @@ object Health {
             Check("Calendar", !p.config.busyCalendar || granted(ctx, Manifest.permission.READ_CALENDAR), "Kivi can't read your calendar", false, Fix.PERMISSIONS),
             Check("Notifications", granted(ctx, Manifest.permission.POST_NOTIFICATIONS), "Kivi can't show call notes", false, Fix.PERMISSIONS),
             Check("Text replies", !p.autoReply || granted(ctx, Manifest.permission.SEND_SMS), "Kivi can't text callers back", false, Fix.PERMISSIONS),
+            Check("Recent messages", !p.useMessages || MessageListener.allowed(ctx),
+                "Kivi can't see your contacts' recent messages, so it has less context", false, Fix.MESSAGES),
         )
     }
 

@@ -14,6 +14,8 @@ import dev.callai.calls.CallWatcher
 import dev.callai.data.Settings
 import dev.callai.data.Store
 
+fun alarmAllowed(last: Long?, now: Long) = last == null || now - last >= 30 * 60_000L
+
 /** What you can tell Kivi mid-call, from the live notification or the live screen. */
 enum class LiveAction(val label: String) {
     TAKE("Take it"), TEXT("Text me instead"), CALL_BACK("Call back in 10 min"), BLOCK("Block as spam");
@@ -48,6 +50,15 @@ object Emergency {
     private var player: MediaPlayer? = null
     private var restoreVolume = -1
     private val main = Handler(Looper.getMainLooper())
+    private val lastAlarm = HashMap<String, Long>()
+
+    /** One emergency alarm per caller (hidden numbers count as one caller) every 30 minutes: no prank loops. */
+    @Synchronized fun allow(number: String, now: Long): Boolean {
+        val key = number.filter(Char::isDigit).takeLast(10).ifEmpty { "hidden" }
+        if (!alarmAllowed(lastAlarm[key], now)) return false
+        lastAlarm[key] = now
+        return true
+    }
 
     fun sound(ctx: Context) { main.post { start(ctx) } }
 

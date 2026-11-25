@@ -12,8 +12,18 @@ android {
         applicationId = "dev.callai"
         minSdk = 34
         targetSdk = 36
-        versionCode = 2 // also restarts the Shizuku bridge with new code
-        versionName = "0.2"
+        versionCode = 3 // also restarts the Shizuku bridge with new code
+        versionName = "0.3"
+    }
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // A personal, sideloaded app: signed with this PC's debug key, so a release installs over a debug build
+            // and keeps your notes. A store release would need its own key.
+            signingConfig = signingConfigs.getByName("debug")
+        }
     }
     buildFeatures { aidl = true; buildConfig = true; compose = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }

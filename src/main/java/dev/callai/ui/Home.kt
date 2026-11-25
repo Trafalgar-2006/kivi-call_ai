@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.*
@@ -69,6 +70,7 @@ fun HomeScreen(go: (Screen) -> Unit) {
     val wanted = blocker != null && (active.isNotEmpty() || prefs.config.strangers)
     var sheet by remember { mutableStateOf<Mode?>(null) }
     var filter by rememberSaveable { mutableStateOf("needs_you") }
+    var query by rememberSaveable { mutableStateOf("") }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -126,9 +128,18 @@ fun HomeScreen(go: (Screen) -> Unit) {
                     } else sheet = mode
                 })
             }
+            item {
+                Text(whoRings(lead, prefs.config.strangers, prefs.config.ringThrough.size, wanted),
+                    Modifier.padding(horizontal = 20.dp, vertical = 12.dp), style = MaterialTheme.typography.bodyMedium)
+            }
             item { SectionTitle("Calls") }
-            item { Filters(calls, filter) { filter = it } }
-            val shown = calls.filter { filter == "all" || it.category == filter }
+            item {
+                OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), singleLine = true,
+                    placeholder = { Text("Search calls") }, leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) })
+            }
+            if (query.isBlank()) item { Filters(calls, filter) { filter = it } }
+            // A search looks through every call, whatever the filter.
+            val shown = if (query.isNotBlank()) calls.filter { it.matches(query) } else calls.filter { filter == "all" || it.category == filter }
             if (calls.isEmpty()) item { EmptyCalls { go(Screen.Test) } }
             else if (shown.isEmpty()) item {
                 Text("Nothing here.", Modifier.padding(20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -137,6 +148,23 @@ fun HomeScreen(go: (Screen) -> Unit) {
         }
     }
     sheet?.let { ModeSheet(it) { sheet = null } }
+}
+
+private fun CallNote.matches(q: String) = listOf(name, reason, number, transcript).any { it.contains(q.trim(), ignoreCase = true) }
+
+/**
+ * Who reaches you right now, in one plain sentence: the tailgate shows the mode; this says what it means, including
+ * what happens when the mode ends.
+ */
+fun whoRings(lead: Mode?, strangers: Boolean, alwaysRing: Int, broken: Boolean): String {
+    val chosen = when (alwaysRing) { 0 -> ""; 1 -> " The 1 person you chose always rings through."; else -> " The $alwaysRing people you chose always ring through." }
+    return when {
+        broken -> "Right now: every call rings for you, because Kivi can't answer (see the problem above)."
+        lead == null -> "Right now: every call rings for you. Kivi isn't answering anyone."
+        lead == Mode.STRANGERS -> "Right now: saved contacts ring for you; Kivi answers unknown numbers.$chosen"
+        else -> "Right now: Kivi answers everyone; calling 3 times in a row rings through.$chosen" +
+            if (strangers) " When ${lead.title} ends, Kivi keeps answering unknown numbers." else " When ${lead.title} ends, every call rings for you."
+    }
 }
 
 /** The signature: a painted tailgate. A mode change repaints it with a wipe in the new mode's colour. */

@@ -4,12 +4,16 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.telecom.Call
+import android.telecom.CallAudioState
+import android.telecom.Connection
 import android.telecom.InCallService
 import android.telecom.VideoProfile
 import dev.callai.Emergency
 import dev.callai.Health
 import dev.callai.Notify
 import dev.callai.ai.LiveSession
+import dev.callai.ai.Net
+import dev.callai.audio.Audio
 import dev.callai.audio.Bridge
 import dev.callai.audio.CallAudio
 import dev.callai.data.Settings
@@ -17,6 +21,12 @@ import dev.callai.data.Store
 
 private const val MUTE_MIC = true // keeps your room out of the call; set false if callers can't hear Kivi
 private const val ANSWER_GRACE_MS = 15_000L // extra wait for Gemini or the bridge; carriers ring for about 30 s
+
+/** Set only by debug builds' fake phone line (src/debug), to test calls with a recorded caller. Always null in release. */
+object TestHooks {
+    const val FAKE_LINE = "dev.callai.debug.FakeCarrier"
+    @Volatile var callerAudio: Audio? = null
+}
 
 /** Telecom binds this as a companion in-call service on every call (no need to be the default dialer). */
 class CallWatcher : InCallService() {
@@ -35,6 +45,11 @@ class CallWatcher : InCallService() {
         main.postDelayed({ setMuted(false) }, 2500) // unmuting ends Kivi's part (see onMuteStateChanged)
     }
 
+    /** "Listen in": the caller on your speaker while Kivi keeps talking. Your mic stays muted, so they can't hear you. */
+    fun listen(on: Boolean) = setAudioRoute(if (on) CallAudioState.ROUTE_SPEAKER else CallAudioState.ROUTE_EARPIECE)
+
+    val listening get() = callAudioState?.route == CallAudioState.ROUTE_SPEAKER
+
     // An urgent or emergency caller should wake you even on silent: an alarm-volume tone while it rings.
     private fun ringLoud(call: Call) {
         Emergency.sound(this)
@@ -45,13 +60,32 @@ class CallWatcher : InCallService() {
         })
     }
 
+    /** A second call while Kivi is on one rings for you as usual, and still counts toward 3 in a row. */
+    private fun anotherCall(call: Call) {
+        val number = call.details.handle?.schemeSpecificPart.orEmpty()
+        val now = System.currentTimeMillis()
+        val caller = Caller(number, contactName(this, number))
+        val who = caller.name ?: mask(number)
+        val last = Store.lastRing(number)
+        val decision = decide(Settings.now.config, situation(this, Settings.now.config, now), caller, last)
+        val urgent = decision is Decision.Ring && decision.urgent
+        Store.rang(number, now, if (urgent) Outcome.URGENT else Outcome.RANG, callsInARow(caller, now, last))
+        Store.log("$who called while Kivi was on another call; it rings for you")
+        Notify.waiting(this, who)
+        if (urgent) ringLoud(call)
+    }
+
     override fun onCallAdded(call: Call) {
-        if (call.details.state != Call.STATE_RINGING || session != null) return
+        if (call.details.state != Call.STATE_RINGING) return
+        if (session != null) return anotherCall(call)
         val number = call.details.handle?.schemeSpecificPart.orEmpty()
         val now = System.currentTimeMillis()
         val prefs = Settings.now
-        val caller = Caller(number, contactName(this, number))
+        // The network can mark a caller ID as forged. Then a saved name proves nothing: treat them as a stranger.
+        val forged = call.details.callerNumberVerificationStatus == Connection.VERIFICATION_STATUS_FAILED
+        val caller = Caller(number, if (forged) null else contactName(this, number))
         val who = caller.name ?: mask(number)
+        if (forged) Store.log("$who's caller ID failed the network's check; treated as a stranger")
         val last = Store.lastRing(number)
         val inARow = callsInARow(caller, now, last) // remembered so the 3rd call in a row can reach you
         val decision = decide(prefs.config, situation(this, prefs.config, now), caller, last)
@@ -67,10 +101,11 @@ class CallWatcher : InCallService() {
         s = LiveSession(this, caller, mode, inARow = inARow) { byAssistant, _ ->
             main.post {
                 if (byAssistant && call.details.state == Call.STATE_ACTIVE) call.disconnect()
-                if (session === s) session = null
+                if (session === s) { session = null; Net.releaseCellular(this) }
             }
         }
         session = s
+        Net.holdCellular(this) // mobile data stands by in case Wi-Fi fails mid-call
         s.connect() // warm up while it rings, so the greeting is instant
         Bridge.bind() // no-op when connected; otherwise the ring gives the bridge time to start
         var answered = false
@@ -78,10 +113,12 @@ class CallWatcher : InCallService() {
         call.registerCallback(object : Call.Callback() {
             override fun onStateChanged(c: Call, state: Int) {
                 if (state == Call.STATE_ACTIVE && answered) {
-                    val bridge = Bridge.service ?: return s.stop(byAssistant = true)
+                    // Debug builds' fake line can play a recorded caller instead of the phone's call audio.
+                    val test = TestHooks.callerAudio?.takeIf { call.details.accountHandle?.componentName?.className == TestHooks.FAKE_LINE }
+                    val audio = test ?: Bridge.service?.let(::CallAudio) ?: return s.stop(byAssistant = true)
                     sawMuted = false
                     if (MUTE_MIC) setMuted(true)
-                    s.begin(CallAudio(bridge))
+                    s.begin(audio)
                 } else if (state == Call.STATE_ACTIVE || state == Call.STATE_DISCONNECTED) {
                     // you picked up yourself, or the caller hung up
                     if (!answered) Store.log(if (state == Call.STATE_ACTIVE) "You picked up $who"
@@ -102,13 +139,16 @@ class CallWatcher : InCallService() {
                 when {
                     problem == null -> {
                         answered = true
-                        Store.log("Answering $who (${mode.name.lowercase()}, call $inARow in a row) after %.1f s".format((System.currentTimeMillis() - now) / 1000.0))
+                        val waited = (System.currentTimeMillis() - now) / 1000.0
+                        Store.log("Answering $who (${mode.name.lowercase()}, call $inARow in a row) after %.1f s".format(waited))
+                        Store.metric("answered", waited)
                         call.answer(VideoProfile.STATE_AUDIO_ONLY)
                     }
                     s.error == null && SystemClock.uptimeMillis() < giveUpAt -> main.postDelayed(this, 500)
                     else -> { // When unsure, let it ring: Kivi never picks up into silence.
                         Store.rang(number, now, Outcome.RANG, inARow)
                         Store.log("$who rang through because $problem")
+                        Store.metric("rang_through")
                         Notify.problem(this@CallWatcher, "Kivi couldn't answer $who", problem)
                         s.stop()
                     }
@@ -127,6 +167,6 @@ class CallWatcher : InCallService() {
     override fun onMuteStateChanged(isMuted: Boolean) {
         if (isMuted) { sawMuted = true; return }
         val s = session ?: return
-        if (sawMuted && calls.any { it.details.state == Call.STATE_ACTIVE }) { sawMuted = false; Store.log("You took over the call"); s.stop() }
+        if (sawMuted && calls.any { it.details.state == Call.STATE_ACTIVE }) { sawMuted = false; Store.log("You took over the call"); s.stop(why = "you took over") }
     }
 }

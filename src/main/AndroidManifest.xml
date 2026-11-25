@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Keeps mobile data up beside Wi-Fi during a call, so Gemini can reconnect over it (ai/Net.kt). -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -15,6 +17,8 @@
     <uses-permission android:name="android.permission.CALL_COMPANION_APP" />
     <uses-permission android:name="android.permission.MANAGE_ONGOING_CALLS" />
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+    <!-- Settings › Lock Kivi: fingerprint or screen lock to open the app. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
     <queries>
         <package android:name="moe.shizuku.privileged.api" />
@@ -62,6 +66,32 @@
         </service>
 
         <receiver android:name=".ActionReceiver" android:exported="false" />
+
+        <!-- Saved contacts' recent WhatsApp/SMS notifications, kept in memory as call context (calls/Messages.kt). -->
+        <service
+            android:name=".calls.MessageListener"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Home-screen widget (calls/ModeWidget.kt). Not exported: its buttons fire Kivi's own PendingIntents, so no
+             other app can switch your modes. -->
+        <receiver android:name=".calls.ModeWidget" android:exported="false" android:label="Kivi">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_mode_info" />
+        </receiver>
+
+        <!-- 8 am self-check and 9 pm summary (Daily.kt). -->
+        <receiver android:name=".DailyReceiver" android:exported="false" />
+        <service
+            android:name=".SelfCheck"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <receiver android:name=".calls.BootReceiver" android:exported="true">
             <intent-filter>

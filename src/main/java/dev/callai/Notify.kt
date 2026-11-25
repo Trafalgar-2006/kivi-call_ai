@@ -53,6 +53,13 @@ object Notify {
 
     fun endLive(ctx: Context) = ctx.getSystemService(NotificationManager::class.java).cancel(LIVE)
 
+    fun waiting(ctx: Context, who: String) = post(ctx, 4, "waiting", "Calls while Kivi is busy", NotificationManager.IMPORTANCE_HIGH,
+        "$who is calling", "Kivi is on another call, so this one rings for you.")
+
+    /** The 9 pm summary of the day's calls; opens the call list. */
+    fun digest(ctx: Context, title: String, text: String) = post(ctx, 5, "digest", "Evening summary", NotificationManager.IMPORTANCE_DEFAULT,
+        title, text)
+
     fun emergency(ctx: Context, who: String, reason: String, live: Boolean) = post(ctx, EMERGENCY, "emergency", "Emergencies",
         NotificationManager.IMPORTANCE_HIGH, "Emergency: $who", reason, { putExtra("screen", if (live) "live" else "home") }) {
         setCategory(Notification.CATEGORY_ALARM)
