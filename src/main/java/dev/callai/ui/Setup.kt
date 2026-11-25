@@ -144,10 +144,16 @@ fun SetupScreen(go: (Screen) -> Unit) {
 @Composable fun AboutYouFields() {
     var owner by remember { mutableStateOf(Settings.now.owner) }
     var status by remember { mutableStateOf(Settings.now.status) }
+    var about by remember { mutableStateOf(Settings.now.about) }
     OutlinedTextField(owner, { owner = it; Settings.update { p -> p.copy(owner = it.trim()) } }, Modifier.fillMaxWidth(),
         label = { Text("Your name") }, supportingText = { Text("Kivi says \"you've reached ${owner.ifBlank { "…" }}'s assistant\"") }, singleLine = true)
     OutlinedTextField(status, { status = it; Settings.update { p -> p.copy(status = it.trim()) } }, Modifier.fillMaxWidth().padding(top = 8.dp),
         label = { Text("What saved contacts may hear (optional)") }, supportingText = { Text("e.g. In a meeting till 5. Strangers never hear this.") })
+    OutlinedTextField(about, { if (it.length <= 1000) { about = it; Settings.update { p -> p.copy(about = it.trim()) } } },
+        Modifier.fillMaxWidth().padding(top = 8.dp), minLines = 3,
+        label = { Text("What Kivi should know about you (optional)") },
+        supportingText = { Text("e.g. Satvik and Ravi are college friends. Parcels go to the security desk. I'm in class till 4 on weekdays. " +
+            "Kivi uses this to understand callers and shares only what helps your saved contacts. Strangers hear none of it.") })
 }
 
 @Composable private fun AboutYou() {

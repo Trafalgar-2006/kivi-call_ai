@@ -44,7 +44,10 @@ $env:JAVA_HOME = "$env:LOCALAPPDATA\Android\jdk-21.0.13.1+2"
 
 ## Things to know
 
-- **After a restart,** start Shizuku again. Kivi reminds you, and re-registers itself once Shizuku is running. On the Android 17 beta, Shizuku's "Start via Wireless debugging" crashes, so start it from a PC instead: `adb shell "$(adb shell pm path moe.shizuku.privileged.api | sed 's/package://;s/base.apk//')lib/arm64/libshizuku.so"`.
+- **After a restart,** start Shizuku again. Kivi reminds you, and re-registers itself once Shizuku is running.
+  - On the Android 17 beta, Shizuku 13.6.0 crashed on "Start via Wireless debugging" because it holds `WRITE_SECURE_SETTINGS` and Android 17 no longer lets apps switch debugging on ([fix pending upstream](https://github.com/RikkaApps/Shizuku/pull/2673)).
+  - Revoking that permission avoids the crash: `adb shell pm revoke moe.shizuku.privileged.api android.permission.WRITE_SECURE_SETTINGS`. Then turn on Wireless debugging yourself and tap Start in Shizuku.
+  - From a PC, this always works: `adb shell "$(adb shell pm path moe.shizuku.privileged.api | sed 's/package://;s/base.apk//')lib/arm64/libshizuku.so"`.
 - **If a call rang through,** Diagnostics → Recent activity says why.
 - **Testing calls without a second phone:** debug builds include a fake phone line (`src/debug/.../FakeCarrier.kt`, never in release). It rings the phone through the real Telecom path from a PC, and also adds worst-case notes for checking the screens. The commands are at the top of that file. Unregister the line afterwards, or the dialer offers "Fake" for outgoing calls.
 - **Auto-reply texts** never contain links, long numbers or `@` handles, whatever a caller says (`ai/AutoReply.kt`).

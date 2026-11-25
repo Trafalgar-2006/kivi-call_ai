@@ -13,6 +13,7 @@ data class Prefs(
     val config: Config = Config(),
     val owner: String = "",
     val status: String = "",       // what saved contacts may hear, e.g. "In a meeting till 5"
+    val about: String = "",        // what Kivi knows about you: family, work, routine; strangers hear none of it
     val key: String = "",          // Gemini API key
     val voice: String = DEFAULT_VOICE, // an Indian English voice from Google's voice library
     val mainLanguage: String = "Telugu", // what most callers speak; Kivi greets with it and leans on it when unsure
@@ -58,6 +59,7 @@ object Settings {
         ),
         owner = sp.getString("owner", "").orEmpty(),
         status = sp.getString("status", "").orEmpty(),
+        about = sp.getString("about", "").orEmpty(),
         key = sp.getString("key", "").orEmpty(),
         // Earlier builds used Gemini's generic voices; anything that isn't an Indian voice moves to the default.
         voice = sp.getString("voice", "").orEmpty().takeIf { it.startsWith("en-in-") } ?: DEFAULT_VOICE,
@@ -78,7 +80,7 @@ object Settings {
             .putLong("driveUntil", c.driveUntil).putString("carDevice", c.carDevice)
             .putLong("awayUntil", c.awayUntil)
             .putStringSet("ringThrough", c.ringThrough)
-            .putString("owner", p.owner).putString("status", p.status)
+            .putString("owner", p.owner).putString("status", p.status).putString("about", p.about)
             .putString("key", p.key).putString("voice", p.voice).putString("mainLanguage", p.mainLanguage)
             .putInt("answerAfterSec", p.answerAfterSec).putInt("keepDays", p.keepDays)
             .putBoolean("onboarded", p.onboarded).putBoolean("autoReply", p.autoReply)

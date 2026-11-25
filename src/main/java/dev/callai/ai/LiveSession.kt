@@ -4,12 +4,14 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.text.format.DateUtils
 import android.util.Base64
 import dev.callai.Notify
 import dev.callai.audio.Audio
 import dev.callai.calls.Caller
 import dev.callai.calls.Mode
 import dev.callai.calls.Outcome
+import dev.callai.calls.sameNumber
 import dev.callai.Emergency
 import dev.callai.data.CATEGORY_LABELS
 import dev.callai.data.CallNote
@@ -26,6 +28,9 @@ import okio.ByteString
 import org.json.JSONArray
 import org.json.JSONObject
 import dev.callai.audio.CallAudio
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
@@ -37,6 +42,7 @@ private const val URL = "wss://generativelanguage.googleapis.com/ws/google.ai.ge
 private const val MAX_CALL_MS = 3 * 60_000L
 private const val CONNECT_TIMEOUT_MS = 5_000L // setup normally completes in under a second
 private const val RECONNECT_MS = 20_000L      // mid-call, how long Kivi keeps the caller holding while it reconnects
+private const val NO_SPEECH = "<no speech>"   // Gemini's transcript placeholder, not words anyone said
 private val LANGUAGE_CODES = mapOf("Telugu" to "te", "Hindi" to "hi", "English" to "en", "Kannada" to "kn", "Tamil" to "ta", "Malayalam" to "ml")
 // OkHttp's default 10 s read timeout killed live calls whenever Gemini was quiet for 10 s (the caller pausing).
 // No read timeout on the socket; a ping every 10 s keeps the line alive and notices a dead one within 10–20 s
@@ -82,6 +88,7 @@ class LiveSession(
     private var done = false
     private var gen = 0
     private var failures = 0
+    private var corrections = 0
     /** Why the session ended badly, if it did. */
     @Volatile var error: String? = null; private set
     @Volatile private var kiviHungUp = false
@@ -289,6 +296,11 @@ class LiveSession(
             if (sc.optBoolean("turnComplete") || sc.optBoolean("interrupted")) {
                 _talking.value = false; kiviOpen = false
                 if (sc.optBoolean("turnComplete") && saidGoodbye()) hangUpAfterGoodbye()
+                // Asked to "check" or "connect" something, the model may invent "a system error occurred". Nothing
+                // failed: Kivi just has no tools. Put it straight, without the caller hearing the instruction.
+                else if (sc.optBoolean("turnComplete") && "system error" in lastKiviLine() && corrections++ < 2)
+                    cue("(Nothing went wrong: you just can't check things or connect calls from a phone line. Don't mention errors again. " +
+                        "Say you can't do that from here and offer to take a message.)")
             }
         }
     }
@@ -326,7 +338,8 @@ class LiveSession(
 
     private fun join(a: String, b: String) = listOf(a.trim(), b.trim()).filter { it.isNotEmpty() }.joinToString(" ")
 
-    private fun heard(text: String, final: Boolean) {
+    private fun heard(raw: String, final: Boolean) {
+        val text = raw.replace(NO_SPEECH, "")
         if (text.isBlank()) return
         lastActivity = SystemClock.uptimeMillis()
         val lines = _lines.value.toMutableList()
@@ -340,7 +353,8 @@ class LiveSession(
     }
 
     // Kivi's words stream in order; one bubble per turn.
-    private fun spoke(text: String) {
+    private fun spoke(raw: String) {
+        val text = raw.replace(NO_SPEECH, "")
         if (text.isBlank()) return
         kiviSpokeSince = true
         val lines = _lines.value
@@ -403,8 +417,19 @@ class LiveSession(
         val repeat = when {
             inARow < 2 -> ""
             caller.name != null -> "\nThis is their call number $inARow in a row. If it is urgent, you may tell them that calling once more will put them straight through to $owner."
-            else -> "\nThis number has called $inARow times in a row. Note that in take_note."
+            else -> "\nThis number has called $inARow times in a row."
         }
+        val today = SimpleDateFormat("EEEE d MMMM, h:mm a", Locale.ENGLISH).format(Date()) // "Wednesday 25 November, 12:20 PM"
+        // Saved contacts may get the way through; strangers (spammers included) don't learn it.
+        val urgent = if (caller.name != null) "\n- If they say it's urgent, tell them that calling 3 times in a row puts them straight through to $owner." else ""
+        val about = p.about.takeIf { it.isNotBlank() }?.let {
+            "\n\nWhat $owner has told you about themselves. Use it to understand callers and to help them. " +
+                (if (caller.name != null) "This is a saved contact, so you may share whatever here helps them and is harmless." else "This caller is unknown: share none of it.") +
+                "\n$it"
+        }.orEmpty()
+        val earlier = earlierCalls().takeIf { it.isNotEmpty() }?.let {
+            "\n\nEarlier calls from this number (for context; bring them up only if the caller does):\n" + it.joinToString("\n")
+        }.orEmpty()
         val share = when {
             caller.name == null -> "Never reveal anything about $owner: where they are, what they are doing, their schedule, address or other numbers."
             p.status.isNotBlank() -> "This is a saved contact, so you may tell them: \"${p.status}\"."
@@ -413,7 +438,14 @@ class LiveSession(
         return """
             You are Kivi, $owner's AI assistant, answering $owner's phone because $owner can't pick up right now. Mention you're $owner's AI assistant when you greet, and admit it if asked.
             Always call $owner by name. Never guess their gender or use he, she, him or her for them.
-            The caller is $who.$repeat
+            It's $today. The caller is $who.$repeat$earlier$about
+
+            What you can and can't do (very important):
+            - You're only a voice on this phone line, with no apps or tools. You can't look anything up, check schedules, tickets, payments or accounts, call or connect anyone, transfer the call, or send anything during the call.
+            - So never say "let me check", "one moment" or "connecting you", never pretend to do any of these, and never talk about errors.
+            - When asked a question, first see if what $owner told you above answers it and this caller may hear it. If so, answer it plainly: that's what it's there for.
+            - Otherwise, or when asked to do something, say in your own words that you can't do that from here, and offer to take a message for $owner.
+            - What you can do: answer from what $owner told you, take a message, and note when they want a call back.$urgent
 
             Languages (very important):
             - English is your main language. Always start the call in friendly Indian English.
@@ -426,7 +458,7 @@ class LiveSession(
             - Use the small words Indians use on the phone where they fit: "haan", "achha", "okay okay", "no problem", "sure sure", and when the caller speaks their language, "andi", "garu", "ji", "sare", "parledu".
             - One short sentence per turn, two at most. React to what they said before asking the next thing ("Ah, okay!", "Got it", "Oh, no problem").
             - Never say the same sentence twice in a call. Rephrase every time.
-            - Greet in one breath: hello, you're Kivi, $owner's AI assistant, who's calling?
+            - Greet in one breath, like "Hello! Kivi here, $owner's AI assistant. Who's calling?"
 
             When you don't understand:
             - First time: say so casually and ask again in simple English ("Sorry, the line's a bit unclear, could you say that again?"). If they seem more at ease in an Indian language, ask in that language instead.
@@ -459,7 +491,15 @@ class LiveSession(
             - Then ask if there's anything else. Only when they say that's all, end the call.
             - To end the call, say a short goodbye that finishes with the exact words "Bye bye!". The line hangs up right after, so never say "bye bye" at any other time.
             - Keep the whole call under three minutes.
-        """.trimIndent()
+        """.lines().joinToString("\n") { it.trim() }.trim() // not trimIndent: inserted lines carry no indent of their own
+    }
+
+    /** "- 2 hours ago: wanted to know about the cricket match", newest first, from the last two weeks. */
+    private fun earlierCalls(): List<String> {
+        if (caller.number.isBlank()) return emptyList()
+        val since = System.currentTimeMillis() - 14 * 24 * 3_600_000L
+        return Store.calls.value.filter { it.time > since && sameNumber(it.number, caller.number) }.take(3)
+            .map { "- ${DateUtils.getRelativeTimeSpanString(it.time)}: ${it.reason}" }
     }
 
     companion object {
