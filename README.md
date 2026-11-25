@@ -46,5 +46,7 @@ $env:JAVA_HOME = "$env:LOCALAPPDATA\Android\jdk-21.0.13.1+2"
 
 - **After a restart,** start Shizuku again. Kivi reminds you, and re-registers itself once Shizuku is running. On the Android 17 beta, Shizuku's "Start via Wireless debugging" crashes, so start it from a PC instead: `adb shell "$(adb shell pm path moe.shizuku.privileged.api | sed 's/package://;s/base.apk//')lib/arm64/libshizuku.so"`.
 - **If a call rang through,** Diagnostics → Recent activity says why.
+- **Testing calls without a second phone:** debug builds include a fake phone line (`src/debug/.../FakeCarrier.kt`, never in release). It rings the phone through the real Telecom path from a PC, and also adds worst-case notes for checking the screens. The commands are at the top of that file. Unregister the line afterwards, or the dialer offers "Fake" for outgoing calls.
+- **Auto-reply texts** never contain links, long numbers or `@` handles, whatever a caller says (`ai/AutoReply.kt`).
 - **Free tier:** Google may use call audio to improve its products. Notes stay on the phone.
 - **If callers can't hear Kivi,** set `MUTE_MIC = false` in `calls/CallWatcher.kt`.

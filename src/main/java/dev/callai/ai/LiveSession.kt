@@ -5,10 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Base64
-import android.util.Log
-import dev.callai.BuildConfig
 import dev.callai.Notify
-import dev.callai.audio.TAG
 import dev.callai.audio.Audio
 import dev.callai.calls.Caller
 import dev.callai.calls.Mode
@@ -39,12 +36,14 @@ private const val SILENCE_HANGUP_MS = 15_000L // nobody has spoken for this long
 private const val URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="
 private const val MAX_CALL_MS = 3 * 60_000L
 private const val CONNECT_TIMEOUT_MS = 5_000L // setup normally completes in under a second
+private const val RECONNECT_MS = 20_000L      // mid-call, how long Kivi keeps the caller holding while it reconnects
 private val LANGUAGE_CODES = mapOf("Telugu" to "te", "Hindi" to "hi", "English" to "en", "Kannada" to "kn", "Tamil" to "ta", "Malayalam" to "ml")
 // OkHttp's default 10 s read timeout killed live calls whenever Gemini was quiet for 10 s (the caller pausing).
-// No read timeout on the socket; a ping every 15 s keeps the line alive and still notices a dead one.
+// No read timeout on the socket; a ping every 10 s keeps the line alive and notices a dead one within 10–20 s
+// (Gemini answers pings in about 0.1 s).
 private val http = OkHttpClient.Builder()
     .readTimeout(0, TimeUnit.MILLISECONDS)
-    .pingInterval(15, TimeUnit.SECONDS)
+    .pingInterval(10, TimeUnit.SECONDS)
     .build()
 
 data class Line(val fromCaller: Boolean, val text: String)
@@ -88,14 +87,14 @@ class LiveSession(
     private var firstAudioAt = 0L
     private val startedAt = System.currentTimeMillis()
     private val main = Handler(Looper.getMainLooper())
-    private var reconnected = false // one second chance per call if the line to Gemini drops
+    @Volatile private var outageUntil = 0L // mid-call, the line dropped: keep reconnecting until then
     private var resuming = false
     @Volatile private var lastActivity = 0L // last time either side said anything
     // Safety net: if the model says goodbye but never calls hang_up, the call still ends.
     private val silenceCheck = object : Runnable {
         override fun run() {
             if (done) return
-            if (SystemClock.uptimeMillis() - lastActivity > SILENCE_HANGUP_MS && audio?.isPlaying() != true) {
+            if (outageUntil == 0L && SystemClock.uptimeMillis() - lastActivity > SILENCE_HANGUP_MS && audio?.isPlaying() != true) {
                 Store.log("Hung up after ${SILENCE_HANGUP_MS / 1000} s of silence")
                 kiviHungUp = true
                 stop(byAssistant = true)
@@ -135,23 +134,24 @@ class LiveSession(
     }
 
     /**
-     * The line to Gemini died. While the phone still rings, keep trying (the caller hears nothing yet, and CallWatcher
-     * decides when to give up). Mid-call, reconnect once and carry on. Otherwise end with the error.
+     * The line to Gemini died. While the phone still rings, network trouble is worth retrying (the caller hears nothing
+     * yet, and CallWatcher decides when to give up). Mid-call, any drop is: Kivi asks the caller to hold on and
+     * reconnects for up to RECONNECT_MS. Otherwise the session ends with the error.
      */
     private fun lost(why: String, canRetry: Boolean) {
         synchronized(this) {
             if (done) return
-            if (!begun && canRetry) {
+            val now = SystemClock.uptimeMillis()
+            if ((begun || canRetry) && (outageUntil == 0L || now < outageUntil)) {
                 ready = false
-                if (failures++ == 0) Store.log("$why; trying again")
-                main.postDelayed({ if (!done) connect() }, 1000)
-                return
-            }
-            if (begun && !reconnected) {
-                reconnected = true; resuming = true; ready = false
-                Store.log("$why; reconnecting")
-                audio?.flush(++gen); _talking.value = false
-                connect()
+                var delay = 1000L
+                if (begun && outageUntil == 0L) { // a new outage mid-call: reconnect straight away
+                    outageUntil = now + RECONNECT_MS; resuming = true; delay = 0
+                    Store.log("$why; reconnecting")
+                    _talking.value = false
+                    audio?.let { a -> val g = ++gen; thread { Fallback.play(ctx, a, g, Fallback.HOLD, wait = false) } }
+                } else if (!begun && failures++ == 0) Store.log("$why; trying again")
+                main.postDelayed({ if (!done) connect() }, delay)
                 return
             }
         }
@@ -202,8 +202,11 @@ class LiveSession(
         val transcript = _lines.value.joinToString("\n") { (if (it.fromCaller) "Caller: " else "Kivi: ") + it.text }
         // The note is written after the call from the whole conversation, by a fast text model.
         val n = Summary.write(Settings.now.owner, caller.name, transcript)
-        n?.optString("emergency")?.takeIf { it.isNotBlank() && emergency == null }?.let { emergency = it }
-        val category = n?.optString("category")
+        val category = forcedCategory ?: n?.optString("category")?.takeIf { it in CATEGORY_LABELS }
+        // A scam dressed up as an emergency ("an accident, send money now") is still a scam: no emergency alert, and
+        // above all no 15-minute pass to ring straight through to you.
+        if (category == "blocked") emergency = null
+        else n?.optString("emergency")?.takeIf { it.isNotBlank() && emergency == null }?.let { emergency = it }
         val saved = CallNote(
             time = startedAt,
             number = caller.number,
@@ -211,7 +214,7 @@ class LiveSession(
             reason = (emergency?.let { "Emergency: $it" } ?: n?.optString("reason").orEmpty()).ifBlank {
                 localReason() ?: error ?: if (kiviHungUp) "Kivi ended the call before learning why" else "The caller hung up before saying why"
             },
-            category = forcedCategory ?: if (emergency != null) "needs_you" else if (category in CATEGORY_LABELS) category!! else "needs_you",
+            category = if (emergency != null) "needs_you" else category ?: "needs_you",
             reply = n?.optString("reply").orEmpty(),
             transcript = transcript,
             durationMs = System.currentTimeMillis() - startedAt,
@@ -252,14 +255,15 @@ class LiveSession(
 
     @Synchronized private fun handle(m: JSONObject) {
         if (done) return
-        // ponytail: debug-only trace of Gemini message fields; delete once caller transcription is confirmed on gemini-3.8-live.
-        if (BuildConfig.DEBUG) Log.d(TAG, "gemini: " + m.keys().asSequence().joinToString() +
-            (m.optJSONObject("serverContent")?.keys()?.asSequence()?.joinToString(prefix = " / ") ?: ""))
         if (m.has("setupComplete")) {
             ready = true; onReady?.invoke()
             when {
                 !begun -> Unit
-                resuming -> { resuming = false; cue("(The line dropped for a few seconds and is back. Say a brief sorry and continue where you left off. Don't greet again.)") }
+                resuming -> {
+                    Store.log("Back on the line after %.1f s".format((SystemClock.uptimeMillis() - outageUntil + RECONNECT_MS) / 1000.0))
+                    resuming = false; outageUntil = 0; lastActivity = SystemClock.uptimeMillis()
+                    cue("(The line dropped for a few seconds and is back. Say a brief sorry and continue where you left off. Don't greet again.)")
+                }
                 else -> talk()
             }
         }
@@ -344,10 +348,12 @@ class LiveSession(
         updateLive()
     }
 
-    private fun send(m: JSONObject) { ws?.send(m.toString()) }
+    // Nothing goes out until Gemini has accepted the setup: OkHttp would queue caller audio ahead of a reconnect's
+    // setup message, and Gemini ends a stream whose first message isn't the setup (1007).
+    private fun send(m: JSONObject) { if (ready) ws?.send(m.toString()) }
 
     // After a reconnect the old socket can still report in; only the current one counts.
-    override fun onOpen(webSocket: WebSocket, response: Response) { if (webSocket === ws) send(setup()) }
+    override fun onOpen(webSocket: WebSocket, response: Response) { if (webSocket === ws) webSocket.send(setup().toString()) }
     override fun onMessage(webSocket: WebSocket, text: String) { if (webSocket === ws) handle(JSONObject(text)) }
     override fun onMessage(webSocket: WebSocket, bytes: ByteString) { if (webSocket === ws) handle(JSONObject(bytes.utf8())) }
     override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {

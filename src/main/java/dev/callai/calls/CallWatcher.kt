@@ -72,6 +72,7 @@ class CallWatcher : InCallService() {
         }
         session = s
         s.connect() // warm up while it rings, so the greeting is instant
+        Bridge.bind() // no-op when connected; otherwise the ring gives the bridge time to start
         var answered = false
 
         call.registerCallback(object : Call.Callback() {
@@ -82,7 +83,11 @@ class CallWatcher : InCallService() {
                     if (MUTE_MIC) setMuted(true)
                     s.begin(CallAudio(bridge))
                 } else if (state == Call.STATE_ACTIVE || state == Call.STATE_DISCONNECTED) {
-                    s.stop() // you picked up yourself, or the caller hung up
+                    // you picked up yourself, or the caller hung up
+                    if (!answered) Store.log(if (state == Call.STATE_ACTIVE) "You picked up $who"
+                        else "$who hung up after %.0f s, before Kivi answered".format((System.currentTimeMillis() - now) / 1000.0))
+                    s.stop()
+                    c.unregisterCallback(this) // Kivi is out of this call now
                 }
             }
         })
@@ -118,7 +123,10 @@ class CallWatcher : InCallService() {
         @Volatile var active: CallWatcher? = null; private set
     }
 
+    // Telecom also unmutes when a call ends; that isn't you.
     override fun onMuteStateChanged(isMuted: Boolean) {
-        if (isMuted) sawMuted = true else if (sawMuted) session?.let { Store.log("You took over the call"); it.stop() }
+        if (isMuted) { sawMuted = true; return }
+        val s = session ?: return
+        if (sawMuted && calls.any { it.details.state == Call.STATE_ACTIVE }) { sawMuted = false; Store.log("You took over the call"); s.stop() }
     }
 }

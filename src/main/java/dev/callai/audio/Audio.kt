@@ -15,7 +15,9 @@ import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.os.Process
 import android.os.SystemClock
@@ -233,7 +235,13 @@ object Bridge {
                 service = s
                 register(s, ctx.packageName)
             }
-            override fun onServiceDisconnected(name: ComponentName?) { service = null; companion = false }
+            // The bridge process died (a crash, or Android reclaiming memory). Start it again, or every call would ring
+            // through until Kivi restarts. If Shizuku itself is gone, bind() waits for its binder instead.
+            override fun onServiceDisconnected(name: ComponentName?) {
+                service = null; companion = false
+                Log.i(TAG, "bridge disconnected; restarting it")
+                Handler(Looper.getMainLooper()).postDelayed({ bind() }, 1000)
+            }
         })
     }
 

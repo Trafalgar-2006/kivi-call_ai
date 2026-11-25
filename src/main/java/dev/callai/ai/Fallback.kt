@@ -10,14 +10,22 @@ import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicInteger
 
-/** A short apology recorded once with the phone's own text-to-speech, played if Gemini drops mid-call. */
+/** Short lines recorded once with the phone's own text-to-speech, for when Gemini can't speak. */
 object Fallback {
-    private const val TEXT = "Sorry, I'm having trouble on this line. Please call back a little later."
-    private fun file(ctx: Context) = File(ctx.filesDir, "fallback.wav")
+    const val SORRY = "fallback" // Gemini is gone: the call ends
+    const val HOLD = "hold"      // Gemini dropped mid-call and Kivi is reconnecting
+    private val LINES = mapOf(
+        SORRY to "Sorry, I'm having trouble on this line. Please call back a little later.",
+        HOLD to "Sorry, the line is a bit unclear. One moment please.",
+    )
+    private fun file(ctx: Context, line: String) = File(ctx.filesDir, "$line.wav")
 
     fun prepare(ctx: Context) {
-        if (file(ctx).exists()) return
+        val todo = LINES.filterKeys { !file(ctx, it).exists() }
+        if (todo.isEmpty()) return
+        val left = AtomicInteger(todo.size)
         var tts: TextToSpeech? = null
         tts = TextToSpeech(ctx.applicationContext) { status ->
             val t = tts ?: return@TextToSpeech
@@ -25,21 +33,21 @@ object Fallback {
             t.language = Locale("en", "IN")
             t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(id: String?) = Unit
-                override fun onDone(id: String?) = t.shutdown()
-                @Deprecated("Deprecated in Java") override fun onError(id: String?) = t.shutdown()
+                override fun onDone(id: String?) { if (left.decrementAndGet() == 0) t.shutdown() }
+                @Deprecated("Deprecated in Java") override fun onError(id: String?) = onDone(id)
             })
-            t.synthesizeToFile(TEXT, null, file(ctx), "fallback")
+            todo.forEach { (line, text) -> t.synthesizeToFile(text, null, file(ctx, line), line) }
         }
     }
 
-    /** Blocks until played (max ~8 s). */
-    fun play(ctx: Context, audio: Audio, gen: Int) {
-        val (rate, pcm) = file(ctx).takeIf { it.exists() }?.readBytes()?.let(::readWav) ?: return
+    /** Plays a line into the call; with wait, blocks until it has played (max ~8 s). */
+    fun play(ctx: Context, audio: Audio, gen: Int, line: String = SORRY, wait: Boolean = true) {
+        val (rate, pcm) = file(ctx, line).takeIf { it.exists() }?.readBytes()?.let(::readWav) ?: return
         val bytes = toBytes(resample(pcm, rate, OUT_RATE))
         audio.flush(gen)
         for (i in bytes.indices step OUT_RATE / 5 * 2) audio.play(gen, bytes.copyOfRange(i, minOf(i + OUT_RATE / 5 * 2, bytes.size)))
         val deadline = SystemClock.uptimeMillis() + 8000
-        while (audio.isPlaying() && SystemClock.uptimeMillis() < deadline) Thread.sleep(150)
+        while (wait && audio.isPlaying() && SystemClock.uptimeMillis() < deadline) Thread.sleep(150)
     }
 }
 
