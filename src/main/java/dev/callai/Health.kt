@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.PowerManager
 import dev.callai.audio.Bridge
+import dev.callai.calls.CallWatcher
 import dev.callai.data.Settings
 
 enum class Fix { OPEN_SHIZUKU, ALLOW_SHIZUKU, PERMISSIONS, ADD_KEY, NONE }
@@ -24,9 +26,13 @@ object Health {
             Check("Shizuku running", Bridge.running(), "Shizuku isn't running", true, Fix.OPEN_SHIZUKU),
             Check("Shizuku access", Bridge.allowed(), "Kivi isn't allowed in Shizuku", true, Fix.ALLOW_SHIZUKU),
             Check("Call audio bridge", Bridge.connected(), "the call audio bridge isn't connected", true),
-            Check("Allowed to answer calls", Bridge.companion, "Android hasn't registered Kivi to answer calls", true),
+            // Telecom binding CallWatcher proves it, even before Kivi's own registration check has finished.
+            Check("Allowed to answer calls", Bridge.companion || CallWatcher.active != null, "Android hasn't registered Kivi to answer calls", true),
             Check("Gemini key", p.key.isNotBlank(), "there's no Gemini key", true, Fix.ADD_KEY),
             Check("Internet", online, "there's no internet", true),
+            // Set through Shizuku when the bridge connects (see Bridge.register).
+            Check("Unrestricted battery", ctx.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(ctx.packageName),
+                "Android can cut Kivi's internet while it's in the background", false),
             // Without contacts every caller looks like a stranger, so this one is critical too.
             Check("Contacts", granted(ctx, Manifest.permission.READ_CONTACTS), "Kivi can't read your contacts", true, Fix.PERMISSIONS),
             Check("Calendar", !p.config.busyCalendar || granted(ctx, Manifest.permission.READ_CALENDAR), "Kivi can't read your calendar", false, Fix.PERMISSIONS),

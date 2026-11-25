@@ -38,6 +38,7 @@ private const val MODEL = "models/gemini-3.8-live-extended-thinking"
 private const val SILENCE_HANGUP_MS = 15_000L // nobody has spoken for this long: the call is over
 private const val URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="
 private const val MAX_CALL_MS = 3 * 60_000L
+private const val CONNECT_TIMEOUT_MS = 5_000L // setup normally completes in under a second
 private val LANGUAGE_CODES = mapOf("Telugu" to "te", "Hindi" to "hi", "English" to "en", "Kannada" to "kn", "Tamil" to "ta", "Malayalam" to "ml")
 // OkHttp's default 10 s read timeout killed live calls whenever Gemini was quiet for 10 s (the caller pausing).
 // No read timeout on the socket; a ping every 15 s keeps the line alive and still notices a dead one.
@@ -74,12 +75,14 @@ class LiveSession(
     private val _talking = MutableStateFlow(false)
     val talking: StateFlow<Boolean> = _talking
 
-    private var ws: WebSocket? = null
+    @Volatile private var ws: WebSocket? = null
     private var audio: Audio? = null
     private var begun = false
     private var done = false
     private var gen = 0
-    @Volatile private var error: String? = null
+    private var failures = 0
+    /** Why the session ended badly, if it did. */
+    @Volatile var error: String? = null; private set
     @Volatile private var kiviHungUp = false
     private var beganAt = 0L
     private var firstAudioAt = 0L
@@ -125,13 +128,25 @@ class LiveSession(
     }
 
     fun connect() {
-        ws = http.newWebSocket(Request.Builder().url(URL + Settings.now.key).build(), this)
+        val socket = http.newWebSocket(Request.Builder().url(URL + Settings.now.key).build(), this)
+        ws = socket
+        // With no read timeout a handshake can hang forever instead of failing; cancel it (onFailure tries again).
+        main.postDelayed({ if (ws === socket && !ready) socket.cancel() }, CONNECT_TIMEOUT_MS)
     }
 
-    /** The line to Gemini died. Mid-call, reconnect once and carry on; otherwise end with the error. */
-    private fun lost(why: String) {
+    /**
+     * The line to Gemini died. While the phone still rings, keep trying (the caller hears nothing yet, and CallWatcher
+     * decides when to give up). Mid-call, reconnect once and carry on. Otherwise end with the error.
+     */
+    private fun lost(why: String, canRetry: Boolean) {
         synchronized(this) {
             if (done) return
+            if (!begun && canRetry) {
+                ready = false
+                if (failures++ == 0) Store.log("$why; trying again")
+                main.postDelayed({ if (!done) connect() }, 1000)
+                return
+            }
             if (begun && !reconnected) {
                 reconnected = true; resuming = true; ready = false
                 Store.log("$why; reconnecting")
@@ -160,7 +175,9 @@ class LiveSession(
 
     fun stop(byAssistant: Boolean = false) {
         synchronized(this) { if (done) return; done = true }
-        ws?.close(1000, null)
+        // Cancel a handshake still in progress: left alone it holds one of OkHttp's 5 connections to Google, and once
+        // all 5 are stuck no call can reach Gemini until the app restarts.
+        ws?.let { if (ready) it.close(1000, null) else it.cancel() }
         main.removeCallbacksAndMessages(null)
         thread(name = "session-end") {
             val a = audio
@@ -334,10 +351,12 @@ class LiveSession(
     override fun onMessage(webSocket: WebSocket, text: String) { if (webSocket === ws) handle(JSONObject(text)) }
     override fun onMessage(webSocket: WebSocket, bytes: ByteString) { if (webSocket === ws) handle(JSONObject(bytes.utf8())) }
     override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-        if (webSocket === ws) lost("Gemini closed the session ($code: ${reason.ifBlank { "no reason given" }})")
+        // 1011/1013: Google is busy, worth another try. Anything else (bad key, bad setup) won't fix itself.
+        if (webSocket === ws) lost("Gemini closed the session ($code: ${reason.ifBlank { "no reason given" }})", canRetry = code == 1011 || code == 1013)
     }
     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-        if (webSocket === ws) lost("the line to Gemini dropped (${response?.code?.let { "HTTP $it, " }.orEmpty()}${t.message ?: t.javaClass.simpleName})")
+        if (webSocket === ws) lost("the line to Gemini dropped (${response?.code?.let { "HTTP $it, " }.orEmpty()}${t.message ?: t.javaClass.simpleName})",
+            canRetry = response == null) // an HTTP error answer (bad key, 4xx) won't fix itself; a network failure might
     }
 
     private fun setup(): JSONObject {

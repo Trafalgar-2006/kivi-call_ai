@@ -2,6 +2,7 @@ package dev.callai.calls
 
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.telecom.Call
 import android.telecom.InCallService
 import android.telecom.VideoProfile
@@ -15,6 +16,7 @@ import dev.callai.data.Settings
 import dev.callai.data.Store
 
 private const val MUTE_MIC = true // keeps your room out of the call; set false if callers can't hear Kivi
+private const val ANSWER_GRACE_MS = 15_000L // extra wait for Gemini or the bridge; carriers ring for about 30 s
 
 /** Telecom binds this as a companion in-call service on every call (no need to be the default dialer). */
 class CallWatcher : InCallService() {
@@ -59,16 +61,7 @@ class CallWatcher : InCallService() {
             return Store.log("$who rang through: ${decision.why}")
         }
         val mode = (decision as Decision.Answer).mode
-
-        // When unsure, let it ring: Kivi never picks up into silence.
-        Health.blocker(this)?.let { problem ->
-            Store.rang(number, now, Outcome.RANG, inARow)
-            Store.log("$who rang through because $problem")
-            Notify.problem(this, "Kivi couldn't answer $who", problem)
-            return
-        }
         Store.rang(number, now, Outcome.KIVI, inARow)
-        Store.log("Answering $who (${mode.name.lowercase()}, call $inARow in a row)")
 
         lateinit var s: LiveSession
         s = LiveSession(this, caller, mode, inARow = inARow) { byAssistant, _ ->
@@ -94,14 +87,27 @@ class CallWatcher : InCallService() {
             }
         })
 
-        main.postDelayed({
-            if (call.details.state != Call.STATE_RINGING) return@postDelayed
-            if (s.ready && Bridge.connected()) {
-                answered = true
-                call.answer(VideoProfile.STATE_AUDIO_ONLY)
-            } else {
-                Store.log("$who rang through: Gemini ready=${s.ready}, bridge=${Bridge.connected()}")
-                s.stop()
+        // Checked at answer time, not on arrival: if this call just started Kivi, Shizuku and the bridge need a few
+        // seconds to reconnect. The phone rings as usual meanwhile, so waiting a little longer for Gemini costs nothing.
+        val giveUpAt = SystemClock.uptimeMillis() + prefs.answerAfterSec * 1000L + ANSWER_GRACE_MS
+        main.postDelayed(object : Runnable {
+            override fun run() {
+                if (call.details.state != Call.STATE_RINGING) return
+                val problem = s.error ?: Health.blocker(this@CallWatcher) ?: if (s.ready) null else "Gemini didn't connect in time"
+                when {
+                    problem == null -> {
+                        answered = true
+                        Store.log("Answering $who (${mode.name.lowercase()}, call $inARow in a row) after %.1f s".format((System.currentTimeMillis() - now) / 1000.0))
+                        call.answer(VideoProfile.STATE_AUDIO_ONLY)
+                    }
+                    s.error == null && SystemClock.uptimeMillis() < giveUpAt -> main.postDelayed(this, 500)
+                    else -> { // When unsure, let it ring: Kivi never picks up into silence.
+                        Store.rang(number, now, Outcome.RANG, inARow)
+                        Store.log("$who rang through because $problem")
+                        Notify.problem(this@CallWatcher, "Kivi couldn't answer $who", problem)
+                        s.stop()
+                    }
+                }
             }
         }, prefs.answerAfterSec * 1000L)
     }

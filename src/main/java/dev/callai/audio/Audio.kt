@@ -238,10 +238,12 @@ object Bridge {
     }
 
     // Both reset on reboot, so they're re-applied on every connect. Without them Telecom ignores companion apps.
+    // The battery exemption sticks, but costs nothing to repeat: without it Android blocks Kivi's internet once Kivi
+    // has sat in the background for a minute, and calls ring through because Gemini can't be reached.
     private fun register(s: IAudioBridge, pkg: String) = thread(name = "register") {
         // Telecom's override is a list that grows on every add, so clear our copies first and add exactly one.
         val out = runCatching {
-            s.exec("appops set $pkg MANAGE_ONGOING_CALLS allow; " +
+            s.exec("cmd deviceidle whitelist +$pkg >/dev/null; appops set $pkg MANAGE_ONGOING_CALLS allow; " +
                 "for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do " +
                 "dumpsys telecom | grep -i DefaultCallCompanionApps | grep -q $pkg || break; telecom add-or-remove-call-companion-app $pkg 0; done; " +
                 "telecom add-or-remove-call-companion-app $pkg 1; " +

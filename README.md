@@ -27,9 +27,10 @@ Kivi never answers into silence. If Shizuku, the key, internet or contacts acces
 | Piece | File | Job |
 |---|---|---|
 | Rules | `calls/Screening.kt` | A pure function that decides whether a call rings or goes to Kivi. Unit-tested. |
-| Call watcher | `calls/CallWatcher.kt` | A companion `InCallService`. It connects to Gemini while the phone rings, then answers and mutes your mic. |
-| Audio bridge | `audio/Audio.kt` | A Shizuku service running as the shell user. It records the caller (`VOICE_DOWNLINK`) and plays Kivi's voice into the call (`TELEPHONY_TX`). On every connect it re-registers Kivi with Telecom as a call companion. |
-| Voice | `ai/LiveSession.kt` | Gemini Live (`gemini-3.8-live`) over a WebSocket. It uses two tools, `take_note` and `hang_up`. If the connection drops mid-call, Kivi plays an apology (`ai/Fallback.kt`). |
+| Call watcher | `calls/CallWatcher.kt` | A companion `InCallService`. It connects to Gemini while the phone rings and answers once everything is ready. If Gemini is slow, it waits up to 15 s longer, then lets the call ring through. It mutes your mic. |
+| Audio bridge | `audio/Audio.kt` | A Shizuku service running as the shell user. It records the caller (`VOICE_DOWNLINK`) and plays Kivi's voice into the call (`TELEPHONY_TX`). On every connect it re-registers Kivi with Telecom as a call companion and exempts Kivi from battery optimisation, since Android otherwise blocks Kivi's internet after a minute in the background. |
+| Voice | `ai/LiveSession.kt` | Gemini Live (`gemini-3.8-live-extended-thinking`) over a WebSocket. The model can't use tools, so Kivi ends calls by saying "Bye bye!", and the app listens for that. If the connection drops while the phone is still ringing, it tries again. If it drops mid-call, it reconnects once, then plays an apology (`ai/Fallback.kt`). |
+| Notes | `ai/Summary.kt` | After the call, a fast text model writes the note from the transcript. |
 | Storage | `data/` | Android's built-in SQLite (calls, recent rings, diagnostics log) and SharedPreferences (settings). |
 | Health | `Health.kt` | The checks that must pass before Kivi may answer. |
 | UI | `ui/` | Jetpack Compose with Material 3. Design notes are in `PRODUCT.md` and `DESIGN.md`. |
@@ -43,6 +44,7 @@ $env:JAVA_HOME = "$env:LOCALAPPDATA\Android\jdk-21.0.13.1+2"
 
 ## Things to know
 
-- **After a restart,** start Shizuku again. Kivi reminds you, and re-registers itself once Shizuku is running.
+- **After a restart,** start Shizuku again. Kivi reminds you, and re-registers itself once Shizuku is running. On the Android 17 beta, Shizuku's "Start via Wireless debugging" crashes, so start it from a PC instead: `adb shell "$(adb shell pm path moe.shizuku.privileged.api | sed 's/package://;s/base.apk//')lib/arm64/libshizuku.so"`.
+- **If a call rang through,** Diagnostics → Recent activity says why.
 - **Free tier:** Google may use call audio to improve its products. Notes stay on the phone.
 - **If callers can't hear Kivi,** set `MUTE_MIC = false` in `calls/CallWatcher.kt`.
