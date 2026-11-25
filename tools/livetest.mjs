@@ -62,7 +62,10 @@ let failures = 0;
 for (const [name, [turns, check]] of Object.entries(cases)) {
   if (only && !only.includes(name)) continue;
   const said = await run(name, turns);
-  const verdict = check(said.slice(1).join("\n"));
+  const replies = said.slice(1).join("\n");
+  // The owner is always named, never he/she/his/her (the prompt says so).
+  const pronoun = replies.match(/\b(he|him|his|she|her)\b/i);
+  const verdict = pronoun ? `said "${pronoun[0]}" about the owner` : check(replies);
   if (verdict !== true) failures++;
   console.log(`${verdict === true ? "PASS" : "FAIL"} ${name}${verdict === true ? "" : ": " + verdict}\n  ${said.map((s, i) => (i ? "-> " : "greet: ") + s).join("\n  ")}`);
 }

@@ -120,9 +120,15 @@ class CallWatcher : InCallService() {
                     if (MUTE_MIC) setMuted(true)
                     s.begin(audio)
                 } else if (state == Call.STATE_ACTIVE || state == Call.STATE_DISCONNECTED) {
-                    // you picked up yourself, or the caller hung up
-                    if (!answered) Store.log(if (state == Call.STATE_ACTIVE) "You picked up $who"
-                        else "$who hung up after %.0f s, before Kivi answered".format((System.currentTimeMillis() - now) / 1000.0))
+                    // you picked up yourself (or a Bluetooth headset did), or the caller hung up
+                    val after = "%.1f s".format((System.currentTimeMillis() - now) / 1000.0)
+                    if (!answered && state == Call.STATE_ACTIVE && callAudioState?.route == CallAudioState.ROUTE_BLUETOOTH) {
+                        // Some headsets answer every call by themselves a few seconds in, before Kivi can.
+                        Store.log("$who was picked up on your Bluetooth headset after $after, before Kivi")
+                        Notify.problem(this@CallWatcher, "Your Bluetooth headset answered $who",
+                            "It picked up after $after, before Kivi. If it answers calls by itself, turn off its auto-answer, or set Settings › Pick up after to 3 s.")
+                    } else if (!answered) Store.log(if (state == Call.STATE_ACTIVE) "You picked up $who"
+                        else "$who hung up after $after, before Kivi answered")
                     s.stop()
                     c.unregisterCallback(this) // Kivi is out of this call now
                 }

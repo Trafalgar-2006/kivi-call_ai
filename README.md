@@ -65,6 +65,7 @@ The release build is shrunk (about 3 MB) and signed with this PC's debug key, so
 - **Phone suite** (`tools/calltest.sh`): rings the phone over the debug build's fake line and attacks Kivi: hidden callers, piled-up hang-ups, 3 in a row, no internet, internet back, mid-call drops of 6 s and 40 s, a killed bridge, picking up yourself, a second caller, and a recorded Telugu caller. Each prints PASS or FAIL; it cleans up after itself.
 - **Model tests** (`tools/livetest.mjs`, `tools/summarytest.mjs`): Kivi's real prompt and the note writer against hostile callers (prompt injection, the alarm trick, money scams, phishing links) and ordinary ones. Run them before changing a prompt or model: `cd tools && npm install && GEMINI_KEY=... node livetest.mjs`.
 - **Line check** (`tools/linecheck.mjs`): setup speed and ping replies from Gemini.
+- **Thinking speed** (`tools/thinkspeed.mjs`): how long Kivi pauses at each thinking level. Measured in November 2026, low, medium and high were all within 50 ms (about 0.45 s to greet, 0.65 s to reply), so the default stays medium.
 - **Recorded callers** (`tools/make_caller.mjs`): makes a WAV of a caller's line for the fake line to play.
 
 ## FlyOS link
@@ -81,6 +82,7 @@ Kivi talks to FlyOS on your laptop over Tailscale, with the token as a bearer he
   - Revoking that permission avoids the crash: `adb shell pm revoke moe.shizuku.privileged.api android.permission.WRITE_SECURE_SETTINGS`. Then turn on Wireless debugging yourself and tap Start in Shizuku.
   - From a PC, this always works: `adb shell "$(adb shell pm path moe.shizuku.privileged.api | sed 's/package://;s/base.apk//')lib/arm64/libshizuku.so"`.
 - **If a call rang through,** Diagnostics → Recent activity says why.
+- **Bluetooth headsets:** some answer every call by themselves a few seconds in (one here did it at 3.7 s), before Kivi's turn. Kivi logs it and tells you; turn off the headset's auto-answer, or set Settings › Pick up after to 3 s. `tools/calltest.sh` refuses to run while a headset is connected.
 - **Testing calls without a second phone:** debug builds include a fake phone line (`src/debug/.../FakeCarrier.kt`, never in release). `tools/calltest.sh` drives it; if you ring it by hand, unregister the line afterwards, or the dialer offers "Fake" for outgoing calls.
 - **Free tier:** Google may use call audio to improve its products; a paid key (billing on) keeps calls out of that. Notes and recordings stay on the phone.
 - **Call recording** is off by default. When on, Kivi tells callers the call is recorded.

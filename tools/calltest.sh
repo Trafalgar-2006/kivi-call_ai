@@ -6,7 +6,8 @@
 # Afterwards it deletes the test notes and unregisters the fake line, so the dialer never offers "Fake".
 set -u
 export MSYS_NO_PATHCONV=1
-OUT="${KIVI_TEST_OUT:-$(cd "$(dirname "$0")" && pwd)/.out}"; mkdir -p "$OUT"
+# pwd -W: Git Bash gives a C:/ path, which Windows Python can open (with MSYS_NO_PATHCONV, /c/... reaches it unconverted)
+OUT="${KIVI_TEST_OUT:-$(cd "$(dirname "$0")" && { pwd -W 2>/dev/null || pwd; })/.out}"; mkdir -p "$OUT"
 LINE=dev.callai/dev.callai.debug.FakeCarrier
 fake()    { adb shell am broadcast -n dev.callai/.debug.FakeCall "$@" >/dev/null 2>&1; }
 ring()    { fake --es number "$1" "${@:2}"; }
@@ -23,6 +24,8 @@ events()  { q "print('\n'.join(t for (t,) in c.execute('select text from events 
 expect()  { # expect <name> <regex>: pass when a log line since the mark matches
             local got; got=$(events)
             if echo "$got" | grep -Eq "$2"; then echo "PASS $1"; PASSED=$((PASSED+1)); else echo "FAIL $1 (wanted /$2/)"; echo "$got" | sed 's/^/    /'; FAILED=$((FAILED+1)); fi; }
+# A connected Bluetooth headset may answer test calls by itself (seen: 3.7 s in, before Kivi), which fails every test.
+headset() { adb shell dumpsys bluetooth_manager 2>/dev/null | sed -n '/^Profile: HeadsetService/,/^Profile:/p' | grep -m1 "mActiveDevice:" | grep -vq null; }
 begin()   { quiet 30; safe || { echo "STOP: the phone is on a real call"; exit 2; }; mark; }
 
 answer()   { begin; ring 40001; sleep 12; hangup; quiet; expect answer "Answering .*0001"; }
@@ -44,6 +47,7 @@ voice()    { # needs tools/caller.wav from make_caller.mjs on the phone (see mak
              q "print(c.execute(\"select transcript from calls where number='400030' order by time desc\").fetchone()[0])" | grep -q "Caller:" \
                && { echo "PASS voice"; PASSED=$((PASSED+1)); } || { echo "FAIL voice (no caller words in the transcript)"; FAILED=$((FAILED+1)); }; }
 
+headset && { echo "STOP: a Bluetooth headset is connected and may answer the test calls itself. Disconnect it and run again."; exit 2; }
 ALL="answer hidden pileup urgent offline comeback outage longdrop early bridge pickup waiting voice"
 PASSED=0; FAILED=0
 trap 'net true; adb shell cmd connectivity set-chain3-enabled false >/dev/null; fake --es do hangup-all; fake --es do clean --el since "$START"; adb shell telecom unregister-phone-account $LINE fake 0 >/dev/null' EXIT
