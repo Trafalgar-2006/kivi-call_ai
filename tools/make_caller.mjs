@@ -8,15 +8,21 @@ import WebSocket from "ws";
 const [out, line, voice = "en-in-csagent-1"] = process.argv.slice(2);
 if (!out || !line) { console.error('usage: node make_caller.mjs out.wav "what the caller says" [voice]'); process.exit(1); }
 const ws = new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + process.env.GEMINI_KEY);
-const chunks = [];
+const chunks = []; let said = "";
 ws.on("open", () => ws.send(JSON.stringify({ setup: { model: "models/gemini-3.8-live-extended-thinking",
   generationConfig: { responseModalities: ["AUDIO"], thinkingConfig: { thinkingLevel: "low" }, speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } },
-  systemInstruction: { parts: [{ text: "You are an actor recording a phone caller's line. Say exactly the words you are given, in the language they are written in, naturally, and nothing else." }] } } })));
+  systemInstruction: { parts: [{ text: "You are an actor recording a phone caller's line. Say exactly the words you are given, in the language they are written in, naturally, and nothing else." }] },
+  outputAudioTranscription: {} } })));
 ws.on("message", (d) => {
   const m = JSON.parse(d.toString());
   if (m.setupComplete) ws.send(JSON.stringify({ clientContent: { turns: [{ role: "user", parts: [{ text: line }] }], turnComplete: true } }));
+  said += m.serverContent?.outputTranscription?.text ?? "";
   for (const p of m.serverContent?.modelTurn?.parts ?? []) if (p.inlineData) chunks.push(Buffer.from(p.inlineData.data, "base64"));
   if (m.serverContent?.turnComplete) {
+    // Live is a conversation model: it sometimes answers the line instead of reading it. Keep only a faithful reading.
+    const words = (t) => t.toLowerCase().match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
+    const heard = new Set(words(said)), want = words(line);
+    if (want.filter((w) => heard.has(w)).length < want.length * 0.6) { console.error(`Gemini said something else, not saved: "${said.trim()}"`); process.exit(1); }
     const pcm = Buffer.concat(chunks), rate = 24000, h = Buffer.alloc(44);
     h.write("RIFF", 0); h.writeUInt32LE(36 + pcm.length, 4); h.write("WAVE", 8); h.write("fmt ", 12); h.writeUInt32LE(16, 16);
     h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(rate, 24); h.writeUInt32LE(rate * 2, 28); h.writeUInt16LE(2, 32);

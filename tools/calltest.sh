@@ -5,7 +5,7 @@
 #   bash tools/calltest.sh answer urgent outage    # chosen scenarios
 # Afterwards it deletes the test notes and unregisters the fake line, so the dialer never offers "Fake".
 set -u
-export MSYS_NO_PATHCONV=1
+export MSYS_NO_PATHCONV=1 PYTHONIOENCODING=utf-8 # Telugu transcripts on a Windows console
 # pwd -W: Git Bash gives a C:/ path, which Windows Python can open (with MSYS_NO_PATHCONV, /c/... reaches it unconverted)
 OUT="${KIVI_TEST_OUT:-$(cd "$(dirname "$0")" && { pwd -W 2>/dev/null || pwd; })/.out}"; mkdir -p "$OUT"
 LINE=dev.callai/dev.callai.debug.FakeCarrier
@@ -44,7 +44,9 @@ voice()    { # needs tools/caller.wav from make_caller.mjs on the phone (see mak
              [ -f "$(dirname "$0")/caller.wav" ] || { echo "SKIP voice (no tools/caller.wav)"; return; }
              adb push "$(dirname "$0")/caller.wav" /data/local/tmp/caller.wav >/dev/null; adb shell run-as dev.callai cp /data/local/tmp/caller.wav files/caller.wav
              begin; ring 400030 --es audio caller.wav; sleep 30; hangup; quiet
-             q "print(c.execute(\"select transcript from calls where number='400030' order by time desc\").fetchone()[0])" | grep -q "Caller:" \
+             for _ in $(seq 1 20); do # the note is written a few seconds after the call, once the note model replies
+               got=$(q "r=c.execute(\"select transcript from calls where number='400030' order by time desc\").fetchone(); print(r[0] if r else '')"); [ -n "$got" ] && break; sleep 2; done
+             echo "$got" | grep -q "Caller:" \
                && { echo "PASS voice"; PASSED=$((PASSED+1)); } || { echo "FAIL voice (no caller words in the transcript)"; FAILED=$((FAILED+1)); }; }
 
 headset && { echo "STOP: a Bluetooth headset is connected and may answer the test calls itself. Disconnect it and run again."; exit 2; }
