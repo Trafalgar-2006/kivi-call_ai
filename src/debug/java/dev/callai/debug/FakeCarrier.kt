@@ -64,12 +64,13 @@ private const val MIN = 60_000L
 private const val DAY = 24 * 60 * MIN
 private val LONG_CHAT = (1..15).joinToString("\n") { "Caller: Haan andi, registration documents gurinchi, sub-registrar office Saturday close avutundi, challan expire avutundi.\nKivi: Achha, so you want Arjun to call back before 6 pm about the flat registration, right?" }
 
-/** Realistic worst cases, spread across rows as real data is: long, short, other scripts, emoji, missing bits. */
-private fun worstCase(now: Long) = listOf(
+/** Realistic worst cases, spread across rows as real data is: long, short, other scripts, emoji, missing bits.
+ * [audio]: a WAV for the first note's recording player (tools/caller.wav, if calltest.sh pushed it). */
+private fun worstCase(now: Long, audio: String) = listOf(
     CallNote(time = now - 2 * MIN, number = "${TEST_PREFIX}1", name = "Venkata Satya Sai Lakshmi Narasimha Prasad Garikapati",
         reason = "Wants Arjun to call back before 6 pm about the registration documents for the Gachibowli flat; the sub-registrar office closes on Saturday and the stamp duty challan expires",
         category = "needs_you", reply = "నమస్కారం వెంకట సత్య సాయి లక్ష్మీ నరసింహ ప్రసాద్ గారు, మీ మెసేజ్ అందింది. అర్జున్ మీకు త్వరలోనే తిరిగి సమాధానం ఇస్తారు.",
-        transcript = LONG_CHAT, durationMs = 178_000, mode = "BUSY"),
+        transcript = LONG_CHAT, durationMs = 178_000, mode = "BUSY", language = "Telugu", callbackAt = now + DAY, audio = audio),
     CallNote(time = now - 60 * MIN, number = "${TEST_PREFIX}2", name = "Jo", reason = "OK", category = "handled", reply = "",
         transcript = "Caller: OK", durationMs = 4_000, mode = "DRIVE"),
     CallNote(time = now - DAY, number = "${TEST_PREFIX}3", name = "QuickCash Loans Pvt. Ltd. (Priya, Senior Relationship Executive, Bengaluru)",
@@ -123,11 +124,12 @@ class FakeCall : BroadcastReceiver() {
             "clean" -> {
                 val since = intent.getLongExtra("since", Long.MAX_VALUE)
                 Store.calls.value.filter { it.number.startsWith(TEST_PREFIX) || (it.number.isEmpty() && it.time >= since) }.forEach { Store.delete(it.id) }
+                if (since != Long.MAX_VALUE) Store.forgetMetrics(since) // calltest.sh stops if a real call comes in
             }
             // Worst-case notes for checking the screens (break-ui); clean removes them.
             "fixture", "fixture-huge" -> {
                 val done = goAsync()
-                val rows = worstCase(System.currentTimeMillis())
+                val rows = worstCase(System.currentTimeMillis(), File(ctx.filesDir, "caller.wav").path)
                 thread {
                     if (intent.getStringExtra("do") == "fixture") rows.forEach { Store.add(it) }
                     else repeat(1000) { i -> Store.add(rows[i % rows.size].copy(time = rows[0].time - i * 3_600_000L, number = "$TEST_PREFIX$i")) }

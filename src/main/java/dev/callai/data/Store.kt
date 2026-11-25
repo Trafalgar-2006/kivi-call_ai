@@ -138,6 +138,9 @@ object Store {
         db.insert("metrics", null, ContentValues().apply { put("time", System.currentTimeMillis()); put("kind", kind); put("value", value) })
     }
 
+    /** Test runs only (the debug fake line's clean): their calls shouldn't count in Diagnostics' "Last 7 days". */
+    fun forgetMetrics(since: Long) { db.delete("metrics", "time>=?", arrayOf(since.toString())) }
+
     fun metrics(since: Long): List<Metric> =
         db.rawQuery("SELECT time,kind,value FROM metrics WHERE time>=? ORDER BY time", arrayOf(since.toString())).use { c ->
             buildList { while (c.moveToNext()) add(Metric(c.getLong(0), c.getString(1), c.getDouble(2))) }
