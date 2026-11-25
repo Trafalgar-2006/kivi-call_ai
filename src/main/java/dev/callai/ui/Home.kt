@@ -232,8 +232,10 @@ private fun ModeTile(mode: Mode, on: Boolean, caption: String, modifier: Modifie
         Column(Modifier.padding(14.dp)) {
             Icon(mode.icon, contentDescription = null)
             Spacer(Modifier.weight(1f).heightIn(min = 10.dp))
-            Text(mode.title, style = MaterialTheme.typography.titleSmall)
-            Text(caption, style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            // One line at any font size: "Strangers" shrinks rather than breaking into "Strange / rs".
+            BasicText(mode.title, style = MaterialTheme.typography.titleSmall.copy(color = fg), maxLines = 1,
+                autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = MaterialTheme.typography.titleSmall.fontSize))
+            Text(caption, style = MaterialTheme.typography.labelSmall, maxLines = 3, overflow = TextOverflow.Ellipsis,
                 color = if (on) Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

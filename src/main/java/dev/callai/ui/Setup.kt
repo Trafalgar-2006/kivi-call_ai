@@ -146,7 +146,7 @@ fun SetupScreen(go: (Screen) -> Unit) {
     var status by remember { mutableStateOf(Settings.now.status) }
     var about by remember { mutableStateOf(Settings.now.about) }
     OutlinedTextField(owner, { owner = it; Settings.update { p -> p.copy(owner = it.trim()) } }, Modifier.fillMaxWidth(),
-        label = { Text("Your name") }, supportingText = { Text("Kivi says \"you've reached ${owner.ifBlank { "…" }}'s assistant\"") }, singleLine = true)
+        label = { Text("Your name") }, supportingText = { Text("Kivi says \"Kivi here, ${owner.trim().substringBefore(' ').ifBlank { "…" }}'s AI assistant\"") }, singleLine = true)
     OutlinedTextField(status, { status = it; Settings.update { p -> p.copy(status = it.trim()) } }, Modifier.fillMaxWidth().padding(top = 8.dp),
         label = { Text("What saved contacts may hear (optional)") }, supportingText = { Text("e.g. In a meeting till 5. Strangers never hear this.") })
     OutlinedTextField(about, { if (it.length <= 1000) { about = it; Settings.update { p -> p.copy(about = it.trim()) } } },
