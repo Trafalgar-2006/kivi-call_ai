@@ -48,6 +48,8 @@ private val http = OkHttpClient.Builder()
 
 data class Line(val fromCaller: Boolean, val text: String)
 
+private fun String.cap(max: Int) = if (length <= max) this else take(max - 1).trimEnd() + "…"
+
 private inline fun JSONArray?.forEachObject(f: (JSONObject) -> Unit) {
     if (this != null) for (i in 0 until length()) optJSONObject(i)?.let(f)
 }
@@ -210,8 +212,9 @@ class LiveSession(
         val saved = CallNote(
             time = startedAt,
             number = caller.number,
-            name = n?.optString("caller_name").orEmpty().ifBlank { caller.name ?: caller.number.ifBlank { "Hidden number" } },
-            reason = (emergency?.let { "Emergency: $it" } ?: n?.optString("reason").orEmpty()).ifBlank {
+            // The note writer's text has no length limit of its own; keep it to what the screens show well.
+            name = n?.optString("caller_name").orEmpty().cap(80).ifBlank { caller.name ?: caller.number.ifBlank { "Hidden number" } },
+            reason = (emergency?.let { "Emergency: $it" } ?: n?.optString("reason").orEmpty()).cap(240).ifBlank {
                 localReason() ?: error ?: if (kiviHungUp) "Kivi ended the call before learning why" else "The caller hung up before saying why"
             },
             category = if (emergency != null) "needs_you" else category ?: "needs_you",

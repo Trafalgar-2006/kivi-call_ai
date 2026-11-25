@@ -44,7 +44,9 @@ fun CallScreen(id: Long, back: () -> Unit) {
             CategoryTag(note.category)
             Text(note.reason, Modifier.padding(top = 16.dp), style = MaterialTheme.typography.titleLarge)
 
-            if (note.number.isNotBlank()) Row(Modifier.padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Wraps instead of squeezing "Send reply" at large font sizes.
+            if (note.number.isNotBlank()) FlowRow(Modifier.padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = { ctx.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${note.number}"))) }, Modifier.heightIn(min = 48.dp)) {
                     Icon(Icons.Rounded.Call, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Call back")
                 }

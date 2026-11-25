@@ -51,6 +51,7 @@ import dev.callai.data.CallNote
 import dev.callai.data.Settings
 import dev.callai.data.Store
 import kotlinx.coroutines.launch
+import java.text.NumberFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -243,7 +244,7 @@ private fun ModeTile(mode: Mode, on: Boolean, caption: String, modifier: Modifie
 private fun Filters(calls: List<CallNote>, selected: String, onSelect: (String) -> Unit) {
     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         (CATEGORY_LABELS.keys + "all").forEach { key ->
-            val count = if (key == "all") calls.size else calls.count { it.category == key }
+            val count = NumberFormat.getIntegerInstance().format(if (key == "all") calls.size else calls.count { it.category == key })
             FilterChip(selected = selected == key, onClick = { onSelect(key) },
                 label = { Text(if (key == "all") "All $count" else "${CATEGORY_LABELS[key]} $count", style = Tabular.merge(MaterialTheme.typography.labelLarge)) })
         }
@@ -256,7 +257,7 @@ private fun CallRow(note: CallNote, onClick: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(note.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(duration(note.durationMs), style = Tabular.merge(MaterialTheme.typography.labelLarge), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(duration(note.durationMs), Modifier.padding(start = 12.dp), style = Tabular.merge(MaterialTheme.typography.labelLarge), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(note.reason, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
