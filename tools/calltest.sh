@@ -40,6 +40,9 @@ early()    { begin; ring 400007; sleep 2; hangup; quiet; expect early "hung up a
 bridge()   { begin; adb shell kill "$(adb shell "ps -A -o PID,NAME | grep dev.callai:bridge" | awk '{print $1}' | tr -d '\r')"; sleep 6; ring 400008; sleep 12; hangup; quiet; expect bridge "Answering .*0008"; }
 pickup()   { begin; ring 400012; sleep 2; adb shell input keyevent KEYCODE_CALL; sleep 6; fake --es do hangup-all; quiet; expect pickup "You picked up"; }
 waiting()  { begin; ring 400010; sleep 9; ring 400011; sleep 4; fake --es do hangup-all; quiet; expect waiting "called while Kivi was on another call"; }
+# Do Not Disturb with every mode off: Kivi answers (busy by day, asleep at night). Restores DND and Strangers mode.
+dnd()      { begin; fake --es do strangers --ez on false; adb shell cmd notification set_dnd priority >/dev/null; ring 400060; sleep 12; hangup
+             adb shell cmd notification set_dnd off >/dev/null; fake --es do strangers --ez on true; quiet; expect dnd "Answering .*0060 \((busy|sleep)"; }
 decline()  { begin; fake --es do block --es number 400050; ring 400050; sleep 5; quiet 15; fake --es do block; expect decline "Declined .*0050"; }
 voice()    { # needs tools/caller.wav from make_caller.mjs on the phone (see make_caller.mjs)
              [ -f "$(dirname "$0")/caller.wav" ] || { echo "SKIP voice (no tools/caller.wav)"; return; }
@@ -51,11 +54,16 @@ voice()    { # needs tools/caller.wav from make_caller.mjs on the phone (see mak
                && { echo "PASS voice"; PASSED=$((PASSED+1)); } || { echo "FAIL voice (no caller words in the transcript)"; FAILED=$((FAILED+1)); }; }
 
 headset && { echo "STOP: a Bluetooth headset is connected and may answer the test calls itself. Disconnect it and run again."; exit 2; }
-ALL="answer hidden pileup urgent offline comeback outage longdrop early bridge pickup waiting decline voice"
+ALL="answer hidden pileup urgent offline comeback outage longdrop early bridge pickup waiting decline dnd voice"
 PASSED=0; FAILED=0
-trap 'net true; adb shell cmd connectivity set-chain3-enabled false >/dev/null; fake --es do hangup-all; fake --es do clean --el since "$START"; adb shell telecom unregister-phone-account $LINE fake 0 >/dev/null' EXIT
+# Test numbers are strangers: Strangers mode on for the run, then back to how it was.
+WAS=$(adb shell run-as dev.callai cat shared_prefs/kivi.xml | grep -o 'name="strangers" value="[a-z]*"' | grep -o 'true\|false'); WAS=${WAS:-false}
+DND=$(adb shell settings get global zen_mode | tr -d '') # 0 = Do Not Disturb off
+trap 'fake --es do strangers --ez on $WAS; net true; adb shell cmd connectivity set-chain3-enabled false >/dev/null; fake --es do hangup-all; fake --es do clean --el since "$START"; adb shell telecom unregister-phone-account $LINE fake 0 >/dev/null' EXIT
 START=$(($(date +%s) * 1000))
 adb shell telecom register-phone-account $LINE fake 0 Fake >/dev/null && adb shell telecom set-phone-account-enabled $LINE fake 0 >/dev/null
+[ "$DND" = "0" ] || ALL=${ALL/ dnd/} # your Do Not Disturb is on: leave it alone
+fake --es do strangers --ez on true
 for t in ${@:-$ALL}; do $t; done
 echo "$PASSED passed, $FAILED failed"
 exit "$FAILED"

@@ -129,6 +129,14 @@ class FakeCall : BroadcastReceiver() {
             "key" -> resultData = Settings.now.key
             // Pretend Google retired Kivi's model: the next connect must find a replacement (Models). No --es model = built-in.
             "set-model" -> Settings.update { it.copy(liveModel = intent.getStringExtra("model").orEmpty()) }
+            // calltest.sh: Strangers mode on for the run (test numbers are strangers; your contacts still ring), then back.
+            "strangers" -> Settings.config { it.copy(strangers = intent.getBooleanExtra("on", false)) }
+            // Settings backup: back up, restore, and compare. "ok" when nothing changed.
+            "backup-check" -> resultData = runCatching {
+                val before = Settings.now
+                Settings.restore(org.json.JSONObject(Settings.backup().toString()))
+                if (Settings.now == before) "ok" else "changed: ${before} vs ${Settings.now}"
+            }.getOrElse { "failed: $it" }
             // Block a test number (--es number 4000x); with no number, unblock every test number.
             "block" -> intent.getStringExtra("number")?.takeIf { it.startsWith(TEST_PREFIX) }
                 ?.let { n -> Settings.config { it.copy(blocked = it.blocked + n) } } ?: Settings.config { it.copy(blocked = it.blocked.filterNot { b -> b.startsWith(TEST_PREFIX) }.toSet()) }
