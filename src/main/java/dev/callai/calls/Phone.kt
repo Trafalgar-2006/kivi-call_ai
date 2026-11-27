@@ -1,5 +1,6 @@
 package dev.callai.calls
 
+import android.app.NotificationManager
 import android.content.ContentUris
 import android.content.Context
 import android.media.AudioDeviceInfo
@@ -11,6 +12,7 @@ import android.provider.ContactsContract.CommonDataKinds.Nickname
 import android.provider.ContactsContract.Data
 import android.provider.ContactsContract.Groups
 import android.provider.ContactsContract.PhoneLookup
+import dev.callai.data.Store
 import java.util.Calendar
 
 // What the phone knows at the moment a call rings. Each lookup fails closed: no permission = no match.
@@ -85,11 +87,16 @@ fun bluetoothAudio(ctx: Context): List<String> =
 fun minuteOfDay(now: Long): Int = Calendar.getInstance().apply { timeInMillis = now }
     .let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
 
-fun situation(ctx: Context, config: Config, now: Long = System.currentTimeMillis()) = Situation(
+fun situation(ctx: Context, config: Config, now: Long = System.currentTimeMillis(), number: String = "") = Situation(
     now = now,
     minuteOfDay = minuteOfDay(now),
     inMeeting = config.busyCalendar && inMeeting(ctx, now),
     carConnected = config.carDevice.isNotBlank() && config.carDevice in bluetoothAudio(ctx),
+    dnd = config.followDnd && ctx.getSystemService(NotificationManager::class.java).currentInterruptionFilter
+        .let { it != NotificationManager.INTERRUPTION_FILTER_ALL && it != NotificationManager.INTERRUPTION_FILTER_UNKNOWN },
+    // Kivi judged this number's last two calls (newest first) as spam.
+    knownSpam = number.isNotBlank() && Store.calls.value.filter { sameNumber(it.number, number) }.take(2)
+        .let { it.size == 2 && it.all { n -> n.category == "blocked" } },
 )
 
 /** For logs that may be shared: never the whole number. */

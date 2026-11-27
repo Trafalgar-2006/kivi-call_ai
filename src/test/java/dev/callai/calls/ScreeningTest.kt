@@ -1,4 +1,4 @@
-﻿package dev.callai.calls
+package dev.callai.calls
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -115,5 +115,29 @@ class ScreeningTest {
 
     @Test fun `an expired sleep timer does nothing`() {
         assertEquals(Decision.Ring("Kivi is off"), decide(Config(sleepUntil = now - 1), noon, friend, last = null))
+    }
+
+    @Test fun `a number you blocked is declined, even on its 3rd call in a row`() {
+        val blocked = Config(strangers = true, blocked = setOf("98480 22334"))
+        assertEquals(Decision.Decline("you blocked this number"), decide(blocked, noon, stranger, LastRing(now - 60_000, Outcome.RANG, 2)))
+    }
+
+    @Test fun `known spam is declined for strangers only`() {
+        val spam = noon.copy(knownSpam = true)
+        assertEquals(Decision.Decline("Kivi blocked its last two calls as spam"), decide(Config(strangers = true), spam, stranger, last = null))
+        assertEquals(Decision.Ring("Ravi is a saved contact"), decide(Config(strangers = true), spam, friend, last = null))
+    }
+
+    @Test fun `do not disturb sends everyone to Kivi, busy by day and asleep at night`() {
+        assertEquals(Decision.Answer(Mode.BUSY), decide(Config(), noon.copy(dnd = true), friend, last = null))
+        assertEquals(Decision.Answer(Mode.SLEEP), decide(Config(), Situation(now, 2 * 60, dnd = true), friend, last = null))
+        assertEquals(Decision.Ring("Kivi is off"), decide(Config(followDnd = false), noon.copy(dnd = true), friend, last = null))
+    }
+
+    @Test fun `Kivi knows when a timed mode ends, and when the sleep schedule wakes you`() {
+        assertEquals(now + 3_600_000, modeEnds(Config(busyUntil = now + 3_600_000), Mode.BUSY, noon))
+        assertEquals(null, modeEnds(Config(busyUntil = FOREVER), Mode.BUSY, noon))
+        val at2am = Situation(now - now % 60_000L, 2 * 60)
+        assertEquals(at2am.now + (4 * 60 + 30) * 60_000L, modeEnds(Config(sleepSchedule = true), Mode.SLEEP, at2am)) // wakes 6:30
     }
 }

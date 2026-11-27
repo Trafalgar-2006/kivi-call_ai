@@ -37,9 +37,10 @@ enum class LiveAction(val label: String) {
 class ActionReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         if (intent.action == STOP_ALARM) return Emergency.quiet(ctx)
+        if (intent.action == SEND_TO_KIVI) { Notify.endRinging(ctx); return CallWatcher.active?.sendToKivi() ?: Unit }
         runCatching { LiveAction.valueOf(intent.action.orEmpty()) }.getOrNull()?.perform()
     }
-    companion object { const val STOP_ALARM = "STOP_ALARM" }
+    companion object { const val STOP_ALARM = "STOP_ALARM"; const val SEND_TO_KIVI = "SEND_TO_KIVI" }
 }
 
 /**

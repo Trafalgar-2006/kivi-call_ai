@@ -16,6 +16,7 @@ class KiviApp : Application() {
         Bridge.init(this)
         Fallback.prepare(this)
         Daily.schedule(this)
+        Reminders.scheduleAll(this) // alarms don't survive an update
         Settings.onChange = { ModeWidget.refresh(this) }
     }
 }

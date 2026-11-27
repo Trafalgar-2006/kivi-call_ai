@@ -18,6 +18,8 @@ import dev.callai.audio.Bridge
 import dev.callai.audio.CallAudio
 import dev.callai.data.Settings
 import dev.callai.data.Store
+import java.text.DateFormat
+import java.util.Date
 
 private const val MUTE_MIC = true // keeps your room out of the call; set false if callers can't hear Kivi
 private const val ANSWER_GRACE_MS = 15_000L // extra wait for Gemini or the bridge; carriers ring for about 30 s
@@ -62,12 +64,13 @@ class CallWatcher : InCallService() {
 
     /** A second call while Kivi is on one rings for you as usual, and still counts toward 3 in a row. */
     private fun anotherCall(call: Call) {
-        val number = call.details.handle?.schemeSpecificPart.orEmpty()
         val now = System.currentTimeMillis()
-        val caller = Caller(number, contactName(this, number))
+        val caller = callerOf(call)
+        val number = caller.number
         val who = caller.name ?: mask(number)
         val last = Store.lastRing(number)
-        val decision = decide(Settings.now.config, situation(this, Settings.now.config, now), caller, last)
+        val decision = decide(Settings.now.config, situation(this, Settings.now.config, now, number), caller, last)
+        if (decision is Decision.Decline) { Store.log("Declined $who: ${decision.why}"); return call.reject(false, null) }
         val urgent = decision is Decision.Ring && decision.urgent
         Store.rang(number, now, if (urgent) Outcome.URGENT else Outcome.RANG, callsInARow(caller, now, last))
         Store.log("$who called while Kivi was on another call; it rings for you")
@@ -75,28 +78,73 @@ class CallWatcher : InCallService() {
         if (urgent) ringLoud(call)
     }
 
+    // The network can mark a caller ID as forged. Then a saved name proves nothing: treat them as a stranger.
+    private fun forged(call: Call) = call.details.callerNumberVerificationStatus == Connection.VERIFICATION_STATUS_FAILED
+    private fun callerOf(call: Call): Caller {
+        val number = call.details.handle?.schemeSpecificPart.orEmpty()
+        return Caller(number, if (forged(call)) null else contactName(this, number))
+    }
+
     override fun onCallAdded(call: Call) {
         if (call.details.state != Call.STATE_RINGING) return
         if (session != null) return anotherCall(call)
-        val number = call.details.handle?.schemeSpecificPart.orEmpty()
         val now = System.currentTimeMillis()
         val prefs = Settings.now
-        // The network can mark a caller ID as forged. Then a saved name proves nothing: treat them as a stranger.
-        val forged = call.details.callerNumberVerificationStatus == Connection.VERIFICATION_STATUS_FAILED
-        val caller = Caller(number, if (forged) null else contactName(this, number))
+        val caller = callerOf(call)
+        val number = caller.number
         val who = caller.name ?: mask(number)
-        if (forged) Store.log("$who's caller ID failed the network's check; treated as a stranger")
+        if (forged(call)) Store.log("$who's caller ID failed the network's check; treated as a stranger")
         val last = Store.lastRing(number)
         val inARow = callsInARow(caller, now, last) // remembered so the 3rd call in a row can reach you
-        val decision = decide(prefs.config, situation(this, prefs.config, now), caller, last)
-        if (decision is Decision.Ring) {
-            Store.rang(number, now, if (decision.urgent) Outcome.URGENT else Outcome.RANG, inARow)
-            if (decision.urgent) ringLoud(call)
-            return Store.log("$who rang through: ${decision.why}")
+        when (val decision = decide(prefs.config, situation(this, prefs.config, now, number), caller, last)) {
+            is Decision.Decline -> { // a number you blocked, or known spam: it never rings and costs no Gemini call
+                Store.rang(number, now, Outcome.BLOCKED, inARow)
+                Store.log("Declined $who: ${decision.why}")
+                call.reject(false, null)
+            }
+            is Decision.Ring -> {
+                Store.rang(number, now, if (decision.urgent) Outcome.URGENT else Outcome.RANG, inARow)
+                if (decision.urgent) ringLoud(call)
+                Store.log("$who rang through: ${decision.why}")
+                Notify.ringing(this, who) // "Send to Kivi", while it rings
+                call.registerCallback(object : Call.Callback() {
+                    override fun onStateChanged(c: Call, state: Int) {
+                        if (state != Call.STATE_RINGING) { Notify.endRinging(this@CallWatcher); c.unregisterCallback(this) }
+                    }
+                })
+            }
+            is Decision.Answer -> {
+                Store.rang(number, now, Outcome.KIVI, inARow)
+                // Saved contacts ring longer, so you can pick up a friend yourself.
+                kivi(call, caller, who, decision.mode, inARow, now, if (caller.name != null) prefs.contactAnswerAfterSec else prefs.answerAfterSec)
+            }
         }
-        val mode = (decision as Decision.Answer).mode
-        Store.rang(number, now, Outcome.KIVI, inARow)
+    }
 
+    /** "Send to Kivi" on a call that's ringing for you: Kivi answers it now, whoever it is and whatever the modes say. */
+    fun sendToKivi() {
+        if (session != null) return
+        val call = calls.firstOrNull { it.details.state == Call.STATE_RINGING } ?: return
+        val caller = callerOf(call)
+        val who = caller.name ?: mask(caller.number)
+        val now = System.currentTimeMillis()
+        val inARow = Store.lastRing(caller.number)?.inARow ?: 1 // this ring was counted when it arrived
+        Store.rang(caller.number, now, Outcome.KIVI, inARow)
+        Store.log("You sent $who to Kivi")
+        kivi(call, caller, who, Mode.BUSY, inARow, now, delaySec = 0)
+    }
+
+    /** Kivi takes the call: connects to Gemini while it rings, then answers after [delaySec] once everything is ready. */
+    private fun kivi(call: Call, caller: Caller, who: String, mode: Mode, inARow: Int, now: Long, delaySec: Int) {
+        val number = caller.number
+        // Gemini's free daily limit is used up: don't make the caller wait 20 s for nothing.
+        Settings.now.quotaUntil.takeIf { now < it }?.let { reset ->
+            val why = "Gemini's free daily limit is used up until ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(reset))}"
+            Store.rang(number, now, Outcome.RANG, inARow)
+            Store.log("$who rang through because $why")
+            Store.metric("rang_through")
+            return Notify.problem(this, "Kivi couldn't answer $who", why)
+        }
         lateinit var s: LiveSession
         s = LiveSession(this, caller, mode, inARow = inARow) { byAssistant, _ ->
             main.post {
@@ -137,7 +185,7 @@ class CallWatcher : InCallService() {
 
         // Checked at answer time, not on arrival: if this call just started Kivi, Shizuku and the bridge need a few
         // seconds to reconnect. The phone rings as usual meanwhile, so waiting a little longer for Gemini costs nothing.
-        val giveUpAt = SystemClock.uptimeMillis() + prefs.answerAfterSec * 1000L + ANSWER_GRACE_MS
+        val giveUpAt = SystemClock.uptimeMillis() + delaySec * 1000L + ANSWER_GRACE_MS
         main.postDelayed(object : Runnable {
             override fun run() {
                 if (call.details.state != Call.STATE_RINGING) return
@@ -160,7 +208,7 @@ class CallWatcher : InCallService() {
                     }
                 }
             }
-        }, prefs.answerAfterSec * 1000L)
+        }, delaySec * 1000L)
     }
 
     // Tapping unmute in the dialer = you're taking the call over; Kivi goes quiet.

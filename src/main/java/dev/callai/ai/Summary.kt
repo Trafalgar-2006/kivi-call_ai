@@ -66,17 +66,27 @@ object Summary {
             .toString().toRequestBody("application/json".toMediaType())
         val deadline = System.currentTimeMillis() + GIVE_UP_MS
         var round = 0
+        var repaired = false
         while (System.currentTimeMillis() < deadline) {
-            for (model in MODELS) {
+            val models = (listOf(Settings.now.noteModel.removePrefix("models/")) + MODELS).filter { it.isNotBlank() }.distinct()
+            var gone = 0
+            for (model in models) {
                 if (System.currentTimeMillis() >= deadline) break
                 runCatching {
                     val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=${Settings.now.key}"
                     http.newCall(Request.Builder().url(url).post(body).build()).execute().use { r ->
+                        if (r.code == 404) { gone++; return@runCatching }
                         val text = JSONObject(r.body!!.string()).getJSONArray("candidates").getJSONObject(0)
                             .getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text")
                         return JSONObject(text)
                     }
                 }
+            }
+            // Every model retired: move to the newest flash-lite Gemini offers, once, and try again straight away.
+            if (gone == models.size && !repaired) {
+                repaired = true
+                Models.pick("generateContent", MODELS.first())?.let { m -> Store.log("Note writer: Google retired its models; now using $m"); Settings.update { it.copy(noteModel = m) } }
+                continue
             }
             Thread.sleep(minOf(2_000L shl round++, 10_000L)) // 2 s, 4 s, 8 s, then every 10 s
         }

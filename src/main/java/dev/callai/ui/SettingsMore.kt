@@ -141,19 +141,75 @@ private val LANGUAGE_CODES = mapOf("Telugu" to "te-IN", "Hindi" to "hi-IN", "Kan
 }
 
 /** Looks for a newer release on GitHub and opens its page. */
+/** Checks GitHub for a newer release; with an APK attached, one tap installs it (Android asks you to confirm). */
 @Composable fun UpdateCheck() {
     val ctx = context()
     var status by remember { mutableStateOf<String?>(null) }
+    var release by remember { mutableStateOf<Updates.Release?>(null) }
     ListItem(headlineContent = { Text("Check for updates") },
         supportingContent = { Text(status ?: "You have version ${BuildConfig.VERSION_NAME}") },
         modifier = Modifier.selectable(false) {
             status = "Checking…"
             thread {
                 status = runCatching { Updates.newer(BuildConfig.VERSION_NAME) }.fold(
-                    { page -> page?.let { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); "A new version is out" } ?: "You have the latest version" },
+                    { r -> release = r; if (r == null) "You have the latest version" else "Version ${r.tag.removePrefix("v")} is out" },
                     { "Couldn't reach GitHub" })
             }
         })
+    release?.let { r ->
+        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (r.apk != null) Button(onClick = {
+                status = "Downloading…"
+                thread { status = runCatching { Updates.install(ctx, r.apk); "Confirm the update when Android asks" }.getOrElse { "Download failed: ${it.message}" } }
+            }) { Text("Install ${r.tag.removePrefix("v")}") }
+            OutlinedButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(r.page)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }) { Text("What's new") }
+        }
+    }
+}
+
+/** Your standing instructions for every call: how Kivi behaves, without a new build. */
+@Composable fun ExtraInstructions() {
+    var extra by remember { mutableStateOf(Settings.now.extra) }
+    OutlinedTextField(extra, { if (it.length <= 600) { extra = it; Settings.update { p -> p.copy(extra = it.trim()) } } },
+        Modifier.fillMaxWidth().padding(top = 20.dp), minLines = 2,
+        label = { Text("Instructions for every call (optional)") },
+        supportingText = { Text("e.g. Speak Telugu with my family. Be formal with Office contacts. Kivi follows these unless they break its privacy and safety rules.") })
+}
+
+/** Numbers you blocked: declined without ringing or Kivi. Kivi also declines a stranger it blocked as spam twice. */
+@Composable fun BlockedNumbers() {
+    val ctx = context()
+    val prefs by Settings.state.collectAsState()
+    if (prefs.config.blocked.isEmpty()) return
+    Text("Blocked numbers", Modifier.padding(top = 24.dp), style = MaterialTheme.typography.bodyLarge)
+    hint("Declined without ringing. Block or unblock from a call's note.")()
+    prefs.config.blocked.sorted().forEach { number ->
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(contactName(ctx, number) ?: number, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            IconButton(onClick = { Settings.config { c -> c.copy(blocked = c.blocked - number) } }) { Icon(Icons.Rounded.Close, contentDescription = "Unblock") }
+        }
+    }
+}
+
+/** All settings in one file, for a new phone or a reinstall. The key and FlyOS token stay locked to this phone. */
+@Composable fun BackupSettings() {
+    val ctx = context()
+    var status by remember { mutableStateOf<String?>(null) }
+    val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        status = runCatching { ctx.contentResolver.openOutputStream(uri)!!.use { it.write(Settings.backup().toString(2).toByteArray()) }; "Settings saved" }
+            .getOrElse { "Couldn't save: ${it.message}" }
+    }
+    val open = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        status = runCatching { Settings.restore(JSONObject(ctx.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() })); "Settings restored" }
+            .getOrElse { "Couldn't restore: ${it.message}" }
+    }
+    Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(onClick = { save.launch("kivi-settings.json") }) { Text("Back up settings") }
+        OutlinedButton(onClick = { open.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }) { Text("Restore") }
+    }
+    hint(status ?: "Everything except your Gemini key and FlyOS token, which stay locked to this phone.")()
 }
 
 /** Every note as plain text, to save or send anywhere (transcripts stay in the app). */

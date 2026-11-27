@@ -1,5 +1,7 @@
 package dev.callai.ui
 
+import dev.callai.calls.sameNumber
+import dev.callai.data.Settings
 import android.content.Intent
 import android.media.MediaPlayer
 import android.provider.CalendarContract
@@ -83,6 +85,11 @@ fun CallScreen(id: Long, back: () -> Unit) {
                     Icon(Icons.Rounded.Alarm, contentDescription = null); Spacer(Modifier.width(8.dp))
                     Text("Remind me at ${DateUtils.formatDateTime(ctx, note.callbackAt, DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_ABBREV_WEEKDAY)}")
                 }
+                // Blocked numbers are declined from now on: no ringing, no Kivi, no Gemini call.
+                val blocked = Settings.state.collectAsState().value.config.blocked.any { sameNumber(it, note.number) }
+                OutlinedButton(onClick = {
+                    Settings.config { c -> if (blocked) c.copy(blocked = c.blocked.filterNot { sameNumber(it, note.number) }.toSet()) else c.copy(blocked = c.blocked + note.number) }
+                }, Modifier.heightIn(min = 48.dp)) { Text(if (blocked) "Unblock" else "Block number") }
             }
             if (note.audio.isNotBlank() && File(note.audio).exists()) Recording(note.audio)
             if (note.reply.isNotBlank()) Surface(Modifier.padding(top = 16.dp).fillMaxWidth(), shape = RoundedCornerShape(16.dp),

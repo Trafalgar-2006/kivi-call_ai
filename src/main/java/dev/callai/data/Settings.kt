@@ -34,6 +34,11 @@ data class Prefs(
     val lock: Boolean = false,     // fingerprint or screen lock to open Kivi
     val flyosUrl: String = "",     // FlyOS on your laptop, over Tailscale; empty = not connected
     val flyosToken: String = "",   // sealed on disk, like the key
+    val extra: String = "",        // your standing instructions for every call ("speak Telugu to my family")
+    val contactAnswerAfterSec: Int = 8, // saved contacts ring longer, so you can pick up friends yourself
+    val liveModel: String = "",    // set when Google retired Kivi's voice model and Kivi picked the newest one; empty = built-in
+    val noteModel: String = "",    // the same for the note writer
+    val quotaUntil: Long = 0,      // Gemini's free daily limit ran out; calls ring for you until it resets
 )
 
 /** All settings as one observable value; the screens, the call watcher and the tile all read the same state. */
@@ -81,6 +86,8 @@ object Settings {
             carDevice = sp.getString("carDevice", "").orEmpty(),
             awayUntil = sp.getLong("awayUntil", 0),
             ringThrough = sp.getStringSet("ringThrough", emptySet()).orEmpty().toSet(),
+            followDnd = sp.getBoolean("followDnd", true),
+            blocked = sp.getStringSet("blocked", emptySet()).orEmpty().toSet(),
         ),
         owner = sp.getString("owner", "").orEmpty(),
         status = sp.getString("status", "").orEmpty(),
@@ -102,6 +109,11 @@ object Settings {
         lock = sp.getBoolean("lock", false),
         flyosUrl = sp.getString("flyosUrl", "").orEmpty(),
         flyosToken = Secret.open(sp.getString("flyosTokenSealed", "").orEmpty()).ifEmpty { sp.getString("flyosToken", "").orEmpty() },
+        extra = sp.getString("extra", "").orEmpty(),
+        contactAnswerAfterSec = sp.getInt("contactAnswerAfterSec", 8),
+        liveModel = sp.getString("liveModel", "").orEmpty(),
+        noteModel = sp.getString("noteModel", "").orEmpty(),
+        quotaUntil = sp.getLong("quotaUntil", 0),
     )
 
     // If the keystore ever fails, keep the secret as before rather than lose it (or crash at startup).
@@ -118,6 +130,7 @@ object Settings {
             .putLong("driveUntil", c.driveUntil).putString("carDevice", c.carDevice)
             .putLong("awayUntil", c.awayUntil)
             .putStringSet("ringThrough", c.ringThrough)
+            .putBoolean("followDnd", c.followDnd).putStringSet("blocked", c.blocked)
             .putString("owner", p.owner).putString("status", p.status).putString("about", p.about)
             .putString("people", JSONObject(p.people).toString())
             .secret("key", p.key)
@@ -128,6 +141,41 @@ object Settings {
             .putBoolean("useMessages", p.useMessages).putBoolean("digest", p.digest)
             .putBoolean("record", p.record).putBoolean("lock", p.lock)
             .putString("flyosUrl", p.flyosUrl).secret("flyosToken", p.flyosToken)
+            .putString("extra", p.extra).putInt("contactAnswerAfterSec", p.contactAnswerAfterSec)
+            .putString("liveModel", p.liveModel).putString("noteModel", p.noteModel).putLong("quotaUntil", p.quotaUntil)
             .apply()
+    }
+
+    // Secrets stay on this phone (they're sealed with its keystore); a backup carries everything else.
+    private val SECRETS = setOf("key", "keySealed", "flyosToken", "flyosTokenSealed")
+
+    /** Every setting except the key and FlyOS token, as JSON for a file. */
+    fun backup(): JSONObject = JSONObject().put("kivi", 1).put("prefs", JSONObject().apply {
+        sp.all.filterKeys { it !in SECRETS }.forEach { (k, v) ->
+            put(k, JSONObject().put("t", when (v) { is Boolean -> "b"; is Int -> "i"; is Long -> "l"; is Set<*> -> "set"; else -> "s" })
+                .put("v", if (v is Set<*>) org.json.JSONArray(v.toList()) else v))
+        }
+    })
+
+    /** Puts a backup's settings in place of the current ones; the key and FlyOS token are kept. Throws on a foreign file. */
+    fun restore(o: JSONObject) {
+        require(o.optInt("kivi") == 1) { "not a Kivi settings backup" }
+        val prefs = o.getJSONObject("prefs")
+        synchronized(this) {
+            val e = sp.edit()
+            sp.all.keys.filter { it !in SECRETS }.forEach(e::remove)
+            prefs.keys().forEach { k ->
+                if (k in SECRETS) return@forEach
+                val x = prefs.getJSONObject(k)
+                when (x.getString("t")) {
+                    "b" -> e.putBoolean(k, x.getBoolean("v")); "i" -> e.putInt(k, x.getInt("v")); "l" -> e.putLong(k, x.getLong("v"))
+                    "set" -> e.putStringSet(k, x.getJSONArray("v").let { a -> (0 until a.length()).map(a::getString).toSet() })
+                    else -> e.putString(k, x.getString("v"))
+                }
+            }
+            e.commit()
+            _state.value = read()
+        }
+        onChange?.let { runCatching(it) }
     }
 }

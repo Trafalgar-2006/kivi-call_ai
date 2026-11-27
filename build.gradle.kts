@@ -12,8 +12,8 @@ android {
         applicationId = "dev.callai"
         minSdk = 34
         targetSdk = 36
-        versionCode = 3 // also restarts the Shizuku bridge with new code
-        versionName = "0.3"
+        versionCode = 4 // also restarts the Shizuku bridge with new code
+        versionName = "0.4"
     }
     buildTypes {
         release {

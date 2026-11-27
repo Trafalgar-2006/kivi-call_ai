@@ -14,6 +14,11 @@ import dev.callai.calls.Outcome
 import dev.callai.calls.Messages
 import dev.callai.calls.busyUntil
 import dev.callai.calls.contactInfo
+import dev.callai.Flash
+import dev.callai.Reminders
+import dev.callai.calls.mask
+import dev.callai.calls.situation
+import dev.callai.calls.modeEnds
 import dev.callai.calls.sameNumber
 import dev.callai.Emergency
 import dev.callai.data.CATEGORY_LABELS
@@ -38,13 +43,13 @@ import kotlin.concurrent.thread
 
 // Extended thinking: reasons harder about unclear, accented speech. Its tool calls fail on Google's side
 // ("a system error occurred", even with Google's own example), so Kivi uses no tools: see saidGoodbye() and Summary.
-private const val MODEL = "models/gemini-3.8-live-extended-thinking"
 private const val SILENCE_HANGUP_MS = 15_000L // nobody has spoken for this long: the call is over
 private const val URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="
 private const val MAX_CALL_MS = 3 * 60_000L
 private const val CONNECT_TIMEOUT_MS = 5_000L // setup normally completes in under a second
 private const val RECONNECT_MS = 20_000L      // mid-call, how long Kivi keeps the caller holding while it reconnects
 private const val NO_SPEECH = "<no speech>"   // Gemini's transcript placeholder, not words anyone said
+private val URGENT_ASK = Regex("""tell [\p{L}]+ it(.?s| is) urgent""")
 private val LANGUAGE_CODES = mapOf("Telugu" to "te", "Hindi" to "hi", "English" to "en", "Kannada" to "kn", "Tamil" to "ta", "Malayalam" to "ml")
 data class Line(val fromCaller: Boolean, val text: String)
 
@@ -114,6 +119,7 @@ class LiveSession(
     @Volatile private var flyosBrief: String? = null      // what FlyOS knows about this caller, fetched before connecting
     private var briefAsked = false
     @Volatile private var emergency: String? = null      // set when Kivi raises the alarm
+    @Volatile private var freeAt: Long? = null           // when you'll be free, as Kivi told a saved contact
     @Volatile private var forcedCategory: String? = null // you said "block" mid-call
     private var notifiedAt = 0L
 
@@ -253,11 +259,14 @@ class LiveSession(
             durationMs = System.currentTimeMillis() - startedAt,
             mode = mode.name,
             language = n?.optString("language").orEmpty().takeIf { it in CALLER_LANGUAGES }.orEmpty(),
-            callbackAt = parseCallback(n?.optString("callback_at").orEmpty(), System.currentTimeMillis()),
+            // A time they asked for; otherwise, for a contact who needs you, when you're free (Kivi said it would remind you).
+            callbackAt = parseCallback(n?.optString("callback_at").orEmpty(), System.currentTimeMillis()).takeIf { it > 0 }
+                ?: freeAt?.takeIf { (category ?: "needs_you") == "needs_you" && it > System.currentTimeMillis() } ?: 0L,
             audio = recording?.file?.takeIf { it.exists() && it.length() > 44 }?.path.orEmpty(),
         )
         Store.judged(caller.number, saved.category)
         val id = Store.add(saved)
+        Reminders.schedule(ctx, saved.copy(id = id)) // a notification at the callback time, if there is one
         Notify.call(ctx, saved.copy(id = id))
         FlyOS.send(saved) // no-op unless you linked FlyOS
         val now = System.currentTimeMillis()
@@ -368,6 +377,19 @@ class LiveSession(
         }
     }
 
+    // "I'll let Arjun know you want to talk" / "I'll tell Arjun it's urgent": your screen flashes (blue, or red when
+    // urgent) and a notification offers to take the call. Each level once per call.
+    private var askedFor = 0
+    private fun wantsYouIfAsked() {
+        val line = lastKiviLine()
+        val level = when { URGENT_ASK.containsMatchIn(line) -> 2; "know you want to talk" in line -> 1; else -> 0 }
+        if (level <= askedFor) return
+        askedFor = level
+        val name = caller.name ?: mask(caller.number)
+        Store.log(if (level == 2) "$name says it's urgent and wants to talk to you" else "$name wants to talk to you")
+        if (record) { Notify.wantsYou(ctx, who, urgent = level == 2); Flash.show(ctx, urgent = level == 2) }
+    }
+
     private fun raiseAlarmIfAsked() {
         if (emergency != null || "alerting" !in lastKiviLine()) return
         val reason = _lines.value.lastOrNull { it.fromCaller }?.text?.take(120).orEmpty().ifBlank { "The caller reported an emergency" }
@@ -413,6 +435,7 @@ class LiveSession(
             lines.dropLast(1) + lines.last().copy(text = lines.last().text + text)
         else lines + Line(false, text.trimStart()).also { kiviOpen = true }
         raiseAlarmIfAsked()
+        wantsYouIfAsked()
         updateLive()
     }
 
@@ -429,28 +452,68 @@ class LiveSession(
         // A refused resume (an expired handle) must not repeat: the next try sends the conversation instead.
         if (usedHandle && !ready) resumeHandle = null
         // A language voice Gemini won't take must not cost the call: retry at once with your main voice.
+        if (!ready && Models.gone(reason) && !modelTried) return replaceModel(reason)
+        if (quotaUsedUp(code, reason)) return outOfQuota()
+        // A model without thinking levels (say, a replacement Kivi picked) refuses the setting: try again without it.
+        if (!ready && !noThinking && Regex("thinking", RegexOption.IGNORE_CASE).containsMatchIn(reason)) {
+            noThinking = true; Store.log("${Models.live().removePrefix("models/")} has no thinking levels; connecting without")
+            return lost("Gemini refused the thinking level", canRetry = true)
+        }
         val tried = voice()
-        val badVoice = !ready && tried != Settings.now.voice
-        if (badVoice) { voiceRefused = true; Store.log("Gemini refused the voice $tried; using your main voice") }
+        val badVoice = !ready && tried.isNotEmpty() && (tried != Settings.now.voice || "voice" in reason.lowercase())
+        if (badVoice) {
+            voiceStep = if (tried != Settings.now.voice) 1 else 2
+            Store.log(if (voiceStep == 1) "Gemini refused the voice $tried; using your main voice" else "Gemini refused the voice $tried; using its default voice")
+        }
         // 1011/1013: Google is busy, worth another try. Anything else (bad key, bad setup) won't fix itself.
         lost("Gemini closed the session ($code: ${reason.ifBlank { "no reason given" }})", canRetry = badVoice || code == 1011 || code == 1013)
     }
+
+    /** Google retired the voice model: find the newest one like it, remember it, and connect again (the phone still rings). */
+    private fun replaceModel(reason: String) {
+        modelTried = true; ready = false
+        val old = ws; ws = null; old?.cancel()
+        thread(name = "model-pick") {
+            // Most like the built-in model: the retired name may be a stopgap Kivi picked earlier.
+            val m = Models.pick("bidiGenerateContent", Models.LIVE)?.takeIf { it != Models.live() }
+            main.post {
+                if (done) return@post
+                if (m == null) return@post lost("Gemini's voice model is gone and no replacement was found ($reason)", canRetry = false)
+                Store.log("Google retired ${Models.live().removePrefix("models/")}; Kivi now uses ${m.removePrefix("models/")}")
+                Settings.update { it.copy(liveModel = m) }
+                connect()
+            }
+        }
+    }
+
+    // The free tier has a daily limit. Once it's used up, retrying only burns the ring time: let calls ring for you
+    // until it resets (midnight Pacific time) and say why.
+    private fun quotaUsedUp(code: Int, reason: String) = code == 1011 && Regex("quota|exhausted|exceeded|rate limit", RegexOption.IGNORE_CASE).containsMatchIn(reason)
+    private fun outOfQuota() {
+        val reset = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Los_Angeles")).apply {
+            add(java.util.Calendar.DAY_OF_YEAR, 1); set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0)
+        }.timeInMillis
+        Settings.update { it.copy(quotaUntil = reset) }
+        lost("Gemini's free daily limit is used up", canRetry = false)
+    }
     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-        if (webSocket === ws) lost("the line to Gemini dropped (${response?.code?.let { "HTTP $it, " }.orEmpty()}${t.message ?: t.javaClass.simpleName})",
+        if (webSocket !== ws) return
+        if (response?.code == 429) return outOfQuota()
+        lost("the line to Gemini dropped (${response?.code?.let { "HTTP $it, " }.orEmpty()}${t.message ?: t.javaClass.simpleName})",
             canRetry = response == null) // an HTTP error answer (bad key, 4xx) won't fix itself; a network failure might
     }
 
     private fun setup(): JSONObject {
         val generation = JSONObject().put("responseModalities", JSONArray().put("AUDIO"))
             // The extended-thinking model refuses sessions without a level; medium still greets in ~1 s.
-            .put("thinkingConfig", JSONObject().put("thinkingLevel", Settings.now.thinking))
-            .put("speechConfig", JSONObject().put("voiceConfig", JSONObject()
-                .put("prebuiltVoiceConfig", JSONObject().put("voiceName", voice()))))
+            .apply { if (!noThinking) put("thinkingConfig", JSONObject().put("thinkingLevel", Settings.now.thinking)) }
+            .apply { voice().takeIf { it.isNotEmpty() }?.let { v -> put("speechConfig", JSONObject().put("voiceConfig", JSONObject()
+                .put("prebuiltVoiceConfig", JSONObject().put("voiceName", v)))) } }
         // A fresh session never asks for resumption (Gemini sends handles anyway), so this can't break a first connect.
         val handle = if (resuming) resumeHandle else null
         usedHandle = handle != null
         return JSONObject().put("setup", JSONObject()
-            .put("model", MODEL)
+            .put("model", Models.live())
             .put("generationConfig", generation)
             .apply { if (handle != null) put("sessionResumption", JSONObject().put("handle", handle)) }
             // Resumed, Gemini already holds the conversation; otherwise it gets the transcript so far.
@@ -468,13 +531,17 @@ class LiveSession(
     }
 
     /** The voice for the language this caller spoke last time, if you picked one for it; else your main voice. */
+    /** The caller's language voice, else your main voice; "" = Gemini's own default, when it refused even that. */
     private fun voice(): String {
         val p = Settings.now
-        if (voiceRefused) return p.voice
+        if (voiceStep >= 2) return ""
+        if (voiceStep == 1) return p.voice
         val last = Store.calls.value.firstOrNull { caller.number.isNotBlank() && sameNumber(it.number, caller.number) }?.language
         return p.voices[last]?.takeIf { it.isNotBlank() } ?: p.voice
     }
-    private var voiceRefused = false
+    private var voiceStep = 0 // 1: a language voice was refused; 2: your main voice too (a new model with other voices)
+    private var modelTried = false
+    private var noThinking = false
 
     /** After a reconnect, the new session needs the conversation so far. */
     private fun soFar(): String = if (!resuming || _lines.value.isEmpty()) "" else
@@ -530,9 +597,16 @@ class LiveSession(
         // Your own instruction for this number, from Settings > People.
         val rule = p.people.entries.firstOrNull { caller.number.isNotBlank() && sameNumber(it.key, caller.number) }?.value
             ?.let { "\n\n$owner's instruction for this caller (follow it): $it" }.orEmpty()
-        // Saved contacts only: when you're free, and what they messaged you lately.
-        val calendar = if (caller.name == null || !p.config.busyCalendar) "" else
-            busyUntil(ctx, now)?.let { "\n$owner's calendar shows them busy until ${SimpleDateFormat("h:mm a", Locale.ENGLISH).format(Date(it))}." }.orEmpty()
+        // Saved contacts only: when you'll be free (your mode's timer or sleep schedule, else your calendar), and what
+        // they messaged you lately. Strangers never learn your schedule.
+        freeAt = if (caller.name == null) null else modeEnds(p.config, mode, situation(ctx, p.config, now))
+            ?: if (p.config.busyCalendar) busyUntil(ctx, now) else null
+        val free = freeAt?.let {
+            val time = SimpleDateFormat(if (DateUtils.isToday(it)) "h:mm a" else "EEEE h:mm a", Locale.ENGLISH).format(Date(it))
+            "\n$owner is busy until $time. If they ask when $owner will be free, tell them, and say you'll remind $owner to call them back after that."
+        }.orEmpty()
+        val extra = p.extra.takeIf { it.isNotBlank() }
+            ?.let { "\n\n$owner's standing instructions for every call (follow them, unless they break the privacy and safety rules below):\n$it" }.orEmpty()
         val messages = if (caller.name == null || !p.useMessages) "" else Messages.from(caller.name, now).takeIf { it.isNotEmpty() }?.let { list ->
             "\n\nMessages ${caller.name} sent $owner recently (context; you may say you saw them):\n" +
                 list.joinToString("\n") { (t, text) -> "- ${DateUtils.getRelativeTimeSpanString(t, now, DateUtils.MINUTE_IN_MILLIS)}: $text" }
@@ -547,7 +621,7 @@ class LiveSession(
         return """
             You are Kivi, $owner's AI assistant, answering $owner's phone because $owner can't pick up right now. Mention you're $owner's AI assistant when you greet, and admit it if asked.
             Always call $owner by name. Never guess their gender or use he, she, him, his or her for them, even when the caller does: say "a message for $owner", never "a message for him".
-            It's $today. The caller is $who.$repeat$calendar$earlier$messages$flyos$about$rule
+            It's $today. The caller is $who.$repeat$free$earlier$messages$flyos$about$rule$extra
 
             What you can and can't do (very important):
             - You're only a voice on this phone line, with no apps or tools. You can't look anything up, check schedules, tickets, payments or accounts, call or connect anyone, transfer the call, or send anything during the call.
@@ -555,6 +629,7 @@ class LiveSession(
             - When asked a question, first see if what $owner told you above answers it and this caller may hear it. If so, answer it plainly: that's what it's there for.
             - Otherwise, or when asked to do something, say in your own words that you can't do that from here, and offer to take a message for $owner.
             - What you can do: answer from what $owner told you, take a message, and note when they want a call back.$urgent
+            - If they ask to talk to $owner or to be put through, say these exact words: "I'll let $owner know you want to talk." If it's urgent, say instead: "I'll tell $owner it's urgent." $owner may join the call; meanwhile keep taking the message, and never promise that $owner will join.
 
             Languages (very important):
             - English is your main language. Always start the call in friendly Indian English.

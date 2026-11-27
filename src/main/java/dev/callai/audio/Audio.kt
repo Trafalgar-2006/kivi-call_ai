@@ -252,6 +252,7 @@ object Bridge {
         // Telecom's override is a list that grows on every add, so clear our copies first and add exactly one.
         val out = runCatching {
             s.exec("cmd deviceidle whitelist +$pkg >/dev/null; appops set $pkg MANAGE_ONGOING_CALLS allow; " +
+                "appops set $pkg SYSTEM_ALERT_WINDOW allow; appops set $pkg REQUEST_INSTALL_PACKAGES allow; " +
                 "for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do " +
                 "dumpsys telecom | grep -i DefaultCallCompanionApps | grep -q $pkg || break; telecom add-or-remove-call-companion-app $pkg 0; done; " +
                 "telecom add-or-remove-call-companion-app $pkg 1; " +

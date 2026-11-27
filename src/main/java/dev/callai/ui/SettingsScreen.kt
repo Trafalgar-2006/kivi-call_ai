@@ -59,6 +59,14 @@ fun SettingsScreen(go: (Screen) -> Unit, back: () -> Unit) {
                 Choice(listOf(3, 5, 8, 12).map { it to "$it s" }, prefs.answerAfterSec) { s -> Settings.update { it.copy(answerAfterSec = s) } }
                 Text("Gives you a few rings to answer yourself first.", Modifier.padding(top = 4.dp),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("For saved contacts", Modifier.padding(top = 16.dp), style = MaterialTheme.typography.bodyLarge)
+                Choice(listOf(3, 5, 8, 12, 20).map { it to "$it s" }, prefs.contactAnswerAfterSec) { s -> Settings.update { it.copy(contactAnswerAfterSec = s) } }
+                Text("Friends ring longer, so you can pick up yourself. While it rings, the notification's Send to Kivi hands any call to Kivi.", Modifier.padding(top = 4.dp),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                Toggle("Follow Do Not Disturb", prefs.config.followDnd) { on -> Settings.config { it.copy(followDnd = on) } }
+                Text("While Do Not Disturb or Bedtime is on, Kivi answers everyone, like Sleep. People who always ring through, and 3 calls in a row, still reach you.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 Text("Always ring through", Modifier.padding(top = 24.dp), style = MaterialTheme.typography.bodyLarge)
                 Text("Only the people you add here skip Kivi. Anyone else reaches you by calling 3 times in a row.",
@@ -90,6 +98,7 @@ fun SettingsScreen(go: (Screen) -> Unit, back: () -> Unit) {
 
                 Text("Your car", Modifier.padding(top = 24.dp, bottom = 4.dp), style = MaterialTheme.typography.bodyLarge)
                 CarPicker(prefs.config.carDevice)
+                BlockedNumbers()
             }
 
             SectionTitle("How Kivi talks")
@@ -109,6 +118,7 @@ fun SettingsScreen(go: (Screen) -> Unit, back: () -> Unit) {
                 Choice(THINKING, prefs.thinking) { t -> Settings.update { it.copy(thinking = t) } }
                 Text("Quick replies faster; Deep understands unclear or mixed-language speech better but pauses longer.",
                     Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                ExtraInstructions()
             }
 
             SectionTitle("Gemini")
@@ -136,6 +146,7 @@ fun SettingsScreen(go: (Screen) -> Unit, back: () -> Unit) {
                 }
                 Toggle("Evening summary at 9 pm", prefs.digest) { on -> Settings.update { it.copy(digest = on) } }
                 ExportNotes()
+                BackupSettings()
                 OutlinedButton(onClick = { confirmDelete = true }, Modifier.padding(top = 12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete all notes") }
             }

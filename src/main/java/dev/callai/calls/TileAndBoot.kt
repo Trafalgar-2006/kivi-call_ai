@@ -34,6 +34,7 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
         Daily.schedule(ctx) // alarms don't survive a restart
+        dev.callai.Reminders.scheduleAll(ctx)
         if (Bridge.running()) return
         val c = Settings.now.config
         val anyMode = c.strangers || c.sleepSchedule || c.busyCalendar || c.carDevice.isNotBlank() ||

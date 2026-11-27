@@ -13,9 +13,11 @@ import android.telecom.ConnectionService
 import android.telecom.DisconnectCause
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
+import dev.callai.ai.LiveSession
 import dev.callai.ai.readWav
 import dev.callai.ai.resample
 import dev.callai.audio.Audio
+import dev.callai.Reminders
 import dev.callai.calls.TestHooks
 import dev.callai.calls.contactInfo
 import dev.callai.data.CallNote
@@ -38,6 +40,7 @@ import kotlin.concurrent.thread
  *   adb shell am broadcast -n dev.callai/.debug.FakeCall --es do fixture     # worst-case notes for the screens (fixture-huge: 1,000)
  *   adb shell am broadcast -n dev.callai/.debug.FakeCall --es do clean --el since <ms>   # delete test notes (hidden ones since <ms>)
  *   adb shell telecom unregister-phone-account $C fake 0                     # always, or the dialer offers "Fake"
+ *   adb shell am broadcast -n dev.callai/.debug.FakeCall --es do set-model --es model models/gone   # a retired model (none: built-in)
  *   adb shell am broadcast -n dev.callai/.debug.FakeCall --es do key         # the Gemini key as the result, for the tools/ model tests
  *       (it's sealed in the keystore; only adb holds DUMP, which this receiver requires, and release builds lack it)
  *
@@ -75,7 +78,7 @@ private fun worstCase(now: Long, audio: String) = listOf(
     CallNote(time = now - 2 * MIN, number = "${TEST_PREFIX}1", name = "Venkata Satya Sai Lakshmi Narasimha Prasad Garikapati",
         reason = "Wants Arjun to call back before 6 pm about the registration documents for the Gachibowli flat; the sub-registrar office closes on Saturday and the stamp duty challan expires",
         category = "needs_you", reply = "నమస్కారం వెంకట సత్య సాయి లక్ష్మీ నరసింహ ప్రసాద్ గారు, మీ మెసేజ్ అందింది. అర్జున్ మీకు త్వరలోనే తిరిగి సమాధానం ఇస్తారు.",
-        transcript = LONG_CHAT, durationMs = 178_000, mode = "BUSY", language = "Telugu", callbackAt = now + DAY, audio = audio),
+        transcript = LONG_CHAT, durationMs = 178_000, mode = "BUSY", language = "Telugu", callbackAt = now + 2 * MIN, audio = audio), // its reminder fires in 2 minutes
     CallNote(time = now - 60 * MIN, number = "${TEST_PREFIX}2", name = "Jo", reason = "OK", category = "handled", reply = "",
         transcript = "Caller: OK", durationMs = 4_000, mode = "DRIVE"),
     CallNote(time = now - DAY, number = "${TEST_PREFIX}3", name = "QuickCash Loans Pvt. Ltd. (Priya, Senior Relationship Executive, Bengaluru)",
@@ -124,6 +127,13 @@ class FakeCall : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         when (intent.getStringExtra("do")) {
             "key" -> resultData = Settings.now.key
+            // Pretend Google retired Kivi's model: the next connect must find a replacement (Models). No --es model = built-in.
+            "set-model" -> Settings.update { it.copy(liveModel = intent.getStringExtra("model").orEmpty()) }
+            // Block a test number (--es number 4000x); with no number, unblock every test number.
+            "block" -> intent.getStringExtra("number")?.takeIf { it.startsWith(TEST_PREFIX) }
+                ?.let { n -> Settings.config { it.copy(blocked = it.blocked + n) } } ?: Settings.config { it.copy(blocked = it.blocked.filterNot { b -> b.startsWith(TEST_PREFIX) }.toSet()) }
+            // The 8 am self-check's Gemini test, now: "ok" or what went wrong.
+            "check" -> { val done = goAsync(); LiveSession.check(ctx) { r -> done.resultData = r ?: "ok"; done.finish() } }
             // Checks contactInfo() against your contacts without showing anyone: how many have labels etc., and which labels.
             "who-check" -> resultData = runCatching {
                 val numbers = ctx.contentResolver.query(Phone.CONTENT_URI, arrayOf(Phone.NUMBER), null, null, null)?.use { c ->
@@ -138,7 +148,9 @@ class FakeCall : BroadcastReceiver() {
             // Hidden callers have no number to recognise, so those go by time: --el since <ms when testing began>.
             "clean" -> {
                 val since = intent.getLongExtra("since", Long.MAX_VALUE)
-                Store.calls.value.filter { it.number.startsWith(TEST_PREFIX) || (it.number.isEmpty() && it.time >= since) }.forEach { Store.delete(it.id) }
+                val nm = ctx.getSystemService(android.app.NotificationManager::class.java)
+                Store.calls.value.filter { it.number.startsWith(TEST_PREFIX) || (it.number.isEmpty() && it.time >= since) }
+                    .forEach { Store.delete(it.id); nm.cancel(100_000 + it.id.toInt()); nm.cancel(it.time.toInt()) } // its reminder and note notifications
                 if (since != Long.MAX_VALUE) Store.forgetMetrics(since) // calltest.sh stops if a real call comes in
             }
             // Worst-case notes for checking the screens (break-ui); clean removes them.
@@ -146,7 +158,7 @@ class FakeCall : BroadcastReceiver() {
                 val done = goAsync()
                 val rows = worstCase(System.currentTimeMillis(), File(ctx.filesDir, "caller.wav").path)
                 thread {
-                    if (intent.getStringExtra("do") == "fixture") rows.forEach { Store.add(it) }
+                    if (intent.getStringExtra("do") == "fixture") rows.forEach { n -> Reminders.schedule(ctx, n.copy(id = Store.add(n))) }
                     else repeat(1000) { i -> Store.add(rows[i % rows.size].copy(time = rows[0].time - i * 3_600_000L, number = "$TEST_PREFIX$i")) }
                     done.finish()
                 }

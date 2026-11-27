@@ -40,6 +40,7 @@ early()    { begin; ring 400007; sleep 2; hangup; quiet; expect early "hung up a
 bridge()   { begin; adb shell kill "$(adb shell "ps -A -o PID,NAME | grep dev.callai:bridge" | awk '{print $1}' | tr -d '\r')"; sleep 6; ring 400008; sleep 12; hangup; quiet; expect bridge "Answering .*0008"; }
 pickup()   { begin; ring 400012; sleep 2; adb shell input keyevent KEYCODE_CALL; sleep 6; fake --es do hangup-all; quiet; expect pickup "You picked up"; }
 waiting()  { begin; ring 400010; sleep 9; ring 400011; sleep 4; fake --es do hangup-all; quiet; expect waiting "called while Kivi was on another call"; }
+decline()  { begin; fake --es do block --es number 400050; ring 400050; sleep 5; quiet 15; fake --es do block; expect decline "Declined .*0050"; }
 voice()    { # needs tools/caller.wav from make_caller.mjs on the phone (see make_caller.mjs)
              [ -f "$(dirname "$0")/caller.wav" ] || { echo "SKIP voice (no tools/caller.wav)"; return; }
              adb push "$(dirname "$0")/caller.wav" /data/local/tmp/caller.wav >/dev/null; adb shell run-as dev.callai cp /data/local/tmp/caller.wav files/caller.wav
@@ -50,7 +51,7 @@ voice()    { # needs tools/caller.wav from make_caller.mjs on the phone (see mak
                && { echo "PASS voice"; PASSED=$((PASSED+1)); } || { echo "FAIL voice (no caller words in the transcript)"; FAILED=$((FAILED+1)); }; }
 
 headset && { echo "STOP: a Bluetooth headset is connected and may answer the test calls itself. Disconnect it and run again."; exit 2; }
-ALL="answer hidden pileup urgent offline comeback outage longdrop early bridge pickup waiting voice"
+ALL="answer hidden pileup urgent offline comeback outage longdrop early bridge pickup waiting decline voice"
 PASSED=0; FAILED=0
 trap 'net true; adb shell cmd connectivity set-chain3-enabled false >/dev/null; fake --es do hangup-all; fake --es do clean --el since "$START"; adb shell telecom unregister-phone-account $LINE fake 0 >/dev/null' EXIT
 START=$(($(date +%s) * 1000))

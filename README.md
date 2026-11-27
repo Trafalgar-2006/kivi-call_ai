@@ -13,6 +13,7 @@ It runs on your own phone and number. It doesn't need root or call forwarding. C
 | **Busy** | Like Sleep. Runs on a timer, or whenever your calendar shows you as busy. |
 | **Drive** | Like Sleep. Runs on a timer, from the quick-settings tile, or when your car's Bluetooth connects. |
 | **Away** | Like Sleep, on a timer. |
+| **Do Not Disturb** | While DND or Bedtime is on, Kivi answers everyone (Settings › Follow Do Not Disturb). |
 
 The home screen's "Right now" line says in one sentence who reaches you, including what happens when a mode ends. The home-screen widget shows the same and starts Busy for an hour, or ends a mode, in one tap.
 
@@ -21,7 +22,9 @@ These callers always ring through:
 - anyone on their **3rd call in a row**, each within 10 minutes of the last. Calls 1 and 2 go to Kivi, which tells a saved contact who says it's urgent that one more call will reach you. Callers Kivi blocked never get through;
 - a second caller while Kivi is already on a call (you get a notification, and it still counts toward 3 in a row).
 
-Tap **unmute** in the dialer to take over a call; Kivi goes quiet. During a call, the live screen lets you type what Kivi should say, listen in on the speaker, or step in.
+Saved contacts ring longer before Kivi picks up (8 s by default), so you can answer a friend yourself. Any call that rings for you shows **Send to Kivi** in its notification: one tap and Kivi answers it, even with Kivi off. Numbers you block from a note are declined without ringing, and so is a stranger Kivi blocked as spam twice; neither uses Gemini.
+
+Tap **unmute** in the dialer to take over a call; Kivi goes quiet. During a call, the live screen lets you type what Kivi should say, listen in on the speaker, or step in. When a caller asks for you, Kivi says "I'll let you know" and your screen flashes blue (red if they say it's urgent), with a notification to take the call.
 
 Kivi never answers into silence. If Shizuku, the key, internet or contacts access is missing, the phone just rings and you get a notification saying why. Settings › Diagnostics lists every check with a fix, and a self-check runs every morning at 8 so you hear about a problem before a caller does.
 
@@ -29,7 +32,9 @@ Kivi never answers into silence. If Shizuku, the key, internet or contacts acces
 
 - **About you** (Settings › You): what you tell it. Saved contacts hear what helps them; strangers hear none of it.
 - **Instructions for particular people** (Settings › You): "Amma: tell her I'll call after 8".
-- For saved contacts only: whether your calendar shows you busy and until when, and the WhatsApp or SMS messages they sent you in the last 6 hours (read from notifications, kept in memory, never codes or OTPs).
+- **Instructions for every call** (Settings › How Kivi talks): "Speak Telugu with my family".
+- **Who a contact is to you**: Kivi greets saved contacts by name and reads their labels (Family, Friends, your own), nickname and star from your contacts.
+- For saved contacts only: until when you're busy (your mode's timer, the sleep schedule, or your calendar; Kivi says it will remind you to call them back, and does), and the WhatsApp or SMS messages they sent you in the last 6 hours (read from notifications, kept in memory, never codes or OTPs).
 - The caller's earlier calls from the last two weeks, and today's date and time.
 - **FlyOS** (Settings › FlyOS, optional): your laptop's assistant gets every call note, and briefs Kivi while the phone rings.
 
@@ -57,7 +62,7 @@ $env:JAVA_HOME = "$env:LOCALAPPDATA\Android\jdk-21.0.13.1+2"
 & "$env:LOCALAPPDATA\Android\gradle-8.14.3\bin\gradle.bat" assembleRelease                  # small release build
 ```
 
-The release build is shrunk (about 3 MB) and signed with this PC's debug key, so it installs over a debug build and keeps your notes. To publish an update, attach the release APK to a GitHub release tagged `vX.Y`; Settings › Check for updates finds it.
+The release build is shrunk (about 3 MB) and signed with this PC's debug key, so it installs over a debug build and keeps your notes. To publish an update, attach the release APK to a GitHub release tagged `vX.Y`; Settings › Check for updates finds it and installs it in one tap (Android asks you to confirm).
 
 ## Testing
 
@@ -84,6 +89,9 @@ Kivi talks to FlyOS on your laptop over Tailscale, with the token as a bearer he
 - **If a call rang through,** Diagnostics → Recent activity says why.
 - **Bluetooth headsets:** some answer every call by themselves a few seconds in (one here did it at 3.7 s), before Kivi's turn. Kivi logs it and tells you; turn off the headset's auto-answer, or set Settings › Pick up after to 3 s. `tools/calltest.sh` refuses to run while a headset is connected.
 - **Testing calls without a second phone:** debug builds include a fake phone line (`src/debug/.../FakeCarrier.kt`, never in release). `tools/calltest.sh` drives it; if you ring it by hand, unregister the line afterwards, or the dialer offers "Fake" for outgoing calls.
-- **Free tier:** Google may use call audio to improve its products; a paid key (billing on) keeps calls out of that. Notes and recordings stay on the phone.
+- **Free tier:** Google may use call audio to improve its products; a paid key (billing on) keeps calls out of that. Notes and recordings stay on the phone. When the free daily limit runs out, calls ring for you until it resets (midnight Pacific), and the notification says so.
+- **Model retirements:** when Google retires Kivi's Gemini model, Kivi lists Google's models and moves to the newest one like it (the note writer too), without a new build.
+- **Callback reminders** come as a notification at the time the caller asked for.
+- **Settings backup** (Settings › Notes): everything except the key and FlyOS token, as one file for a new phone.
 - **Call recording** is off by default. When on, Kivi tells callers the call is recorded.
 - **If callers can't hear Kivi,** set `MUTE_MIC = false` in `calls/CallWatcher.kt`.

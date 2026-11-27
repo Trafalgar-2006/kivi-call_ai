@@ -21,6 +21,8 @@ data class Config(
     val carDevice: String = "",
     val awayUntil: Long = 0,
     val ringThrough: Set<String> = emptySet(),
+    val followDnd: Boolean = true,        // Do Not Disturb or Bedtime on: Kivi answers everyone, like Sleep
+    val blocked: Set<String> = emptySet(), // numbers you blocked: declined without Kivi (or Gemini) at all
 )
 
 /** What's true at the moment the phone rings. */
@@ -29,6 +31,8 @@ data class Situation(
     val minuteOfDay: Int,
     val inMeeting: Boolean = false,
     val carConnected: Boolean = false,
+    val dnd: Boolean = false,        // Do Not Disturb (or Bedtime) is on
+    val knownSpam: Boolean = false,  // Kivi blocked this number's last two calls as spam
 )
 
 data class Caller(val number: String, val name: String?)
@@ -36,6 +40,7 @@ data class Caller(val number: String, val name: String?)
 sealed interface Decision {
     data class Ring(val why: String, val urgent: Boolean = false) : Decision
     data class Answer(val mode: Mode) : Decision
+    data class Decline(val why: String) : Decision
 }
 
 /** How the last call from a number went: it rang normally, rang as urgent, Kivi took it, or Kivi blocked it. */
@@ -58,6 +63,21 @@ fun activeModes(c: Config, s: Situation): List<Mode> = buildList {
     if (s.now < c.sleepUntil || (c.sleepSchedule && inSleepWindow(s.minuteOfDay, c.bedtime, c.wake))) add(Mode.SLEEP)
     if (s.now < c.busyUntil || (c.busyCalendar && s.inMeeting)) add(Mode.BUSY)
     if (s.now < c.awayUntil) add(Mode.AWAY)
+    // Do Not Disturb at night is sleep; in the day it's "busy". Either way everyone goes to Kivi.
+    if (c.followDnd && s.dnd) (if (inSleepWindow(s.minuteOfDay, c.bedtime, c.wake)) Mode.SLEEP else Mode.BUSY).let { if (it !in this) add(it) }
+}
+
+/** When a mode that's on now ends, if Kivi can know: a timer, or the morning for the sleep schedule. Null: no end known. */
+fun modeEnds(c: Config, mode: Mode, s: Situation): Long? {
+    fun timer(until: Long) = until.takeIf { s.now < it && it != FOREVER }
+    return when (mode) {
+        Mode.DRIVE -> timer(c.driveUntil)
+        Mode.SLEEP -> timer(c.sleepUntil) ?: if (c.sleepSchedule && inSleepWindow(s.minuteOfDay, c.bedtime, c.wake))
+            s.now - s.now % 60_000L + ((c.wake - s.minuteOfDay + 1440) % 1440) * 60_000L else null
+        Mode.BUSY -> timer(c.busyUntil)
+        Mode.AWAY -> timer(c.awayUntil)
+        Mode.STRANGERS -> null
+    }
 }
 
 /**
@@ -74,6 +94,9 @@ fun decide(config: Config, situation: Situation, caller: Caller, last: LastRing?
     // Kivi told an emergency caller that calling back would reach the owner; keep that promise for 15 minutes.
     val emergencyCallback = caller.number.isNotBlank() && last?.outcome == Outcome.EMERGENCY && situation.now - last.time < EMERGENCY_PASS_MS
     return when {
+        // Before anything else, even 3 in a row: a number you blocked never rings and never costs a Gemini call.
+        caller.number.isNotBlank() && config.blocked.any { sameNumber(it, caller.number) } -> Decision.Decline("you blocked this number")
+        caller.name == null && situation.knownSpam -> Decision.Decline("Kivi blocked its last two calls as spam")
         emergencyCallback -> Decision.Ring("Emergency callback", urgent = true)
         urgent -> Decision.Ring("Called $URGENT_CALLS times in a row, so it may be urgent", urgent = true)
         everyone != null && config.ringThrough.any { sameNumber(it, caller.number) } -> Decision.Ring("${caller.name} always rings through")
