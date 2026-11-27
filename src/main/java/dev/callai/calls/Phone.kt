@@ -6,6 +6,10 @@ import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.net.Uri
 import android.provider.CalendarContract
+import android.provider.ContactsContract.CommonDataKinds.GroupMembership
+import android.provider.ContactsContract.CommonDataKinds.Nickname
+import android.provider.ContactsContract.Data
+import android.provider.ContactsContract.Groups
 import android.provider.ContactsContract.PhoneLookup
 import java.util.Calendar
 
@@ -19,6 +23,25 @@ fun contactName(ctx: Context, number: String): String? {
             arrayOf(PhoneLookup.DISPLAY_NAME), null, null, null)?.use { if (it.moveToFirst()) it.getString(0) else null }
     }.getOrNull()
 }
+
+/** Who a saved contact is to you, from your contacts: "labelled Family, Gym; nickname Chintu; starred as a favourite". */
+fun contactInfo(ctx: Context, number: String): String? = runCatching {
+    val r = ctx.contentResolver
+    val (id, starred) = r.query(Uri.withAppendedPath(PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number)),
+        arrayOf(PhoneLookup._ID, PhoneLookup.STARRED), null, null, null)?.use { if (it.moveToFirst()) it.getLong(0) to (it.getInt(1) == 1) else null }
+        ?: return null
+    val groups = mutableListOf<Long>(); var nick: String? = null
+    r.query(Data.CONTENT_URI, arrayOf(Data.MIMETYPE, Data.DATA1), "${Data.CONTACT_ID}=? AND ${Data.MIMETYPE} IN (?,?)",
+        arrayOf(id.toString(), GroupMembership.CONTENT_ITEM_TYPE, Nickname.CONTENT_ITEM_TYPE), null)?.use { c ->
+        while (c.moveToNext()) if (c.getString(0) == Nickname.CONTENT_ITEM_TYPE) nick = c.getString(1) else c.getString(1)?.toLongOrNull()?.let(groups::add)
+    }
+    // Your own labels and Google's Friends/Family/Coworkers; not the automatic "My Contacts" or "Starred".
+    val labels = if (groups.isEmpty()) emptyList() else r.query(Groups.CONTENT_URI, arrayOf(Groups.TITLE),
+        "${Groups._ID} IN (${groups.joinToString(",")}) AND (${Groups.SYSTEM_ID} IS NULL OR ${Groups.SYSTEM_ID} IN ('Friends','Family','Coworkers')) AND ${Groups.TITLE} NOT IN ('My Contacts','Starred in Android')",
+        null, null)?.use { c -> generateSequence { if (c.moveToNext()) c.getString(0) else null }.filterNotNull().distinct().toList() }.orEmpty()
+    listOfNotNull(labels.takeIf { it.isNotEmpty() }?.joinToString(", ", "labelled "), nick?.takeIf { it.isNotBlank() }?.let { "nickname $it" },
+        "starred as a favourite".takeIf { starred }).joinToString("; ").ifBlank { null }
+}.getOrNull()
 
 /** A busy, non-all-day calendar event is happening right now. */
 fun inMeeting(ctx: Context, now: Long): Boolean = runCatching {

@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.provider.ContactsContract.CommonDataKinds.Phone
 import android.net.Uri
 import android.os.Bundle
 import android.telecom.Connection
@@ -16,7 +17,9 @@ import dev.callai.ai.readWav
 import dev.callai.ai.resample
 import dev.callai.audio.Audio
 import dev.callai.calls.TestHooks
+import dev.callai.calls.contactInfo
 import dev.callai.data.CallNote
+import dev.callai.data.Settings
 import dev.callai.data.Store
 import java.io.File
 import java.nio.ByteBuffer
@@ -35,6 +38,8 @@ import kotlin.concurrent.thread
  *   adb shell am broadcast -n dev.callai/.debug.FakeCall --es do fixture     # worst-case notes for the screens (fixture-huge: 1,000)
  *   adb shell am broadcast -n dev.callai/.debug.FakeCall --es do clean --el since <ms>   # delete test notes (hidden ones since <ms>)
  *   adb shell telecom unregister-phone-account $C fake 0                     # always, or the dialer offers "Fake"
+ *   adb shell am broadcast -n dev.callai/.debug.FakeCall --es do key         # the Gemini key as the result, for the tools/ model tests
+ *       (it's sealed in the keystore; only adb holds DUMP, which this receiver requires, and release builds lack it)
  *
  * Only numbers starting 4000 ring: they're too short for Kivi to ever text, and clean() knows them.
  */
@@ -118,6 +123,16 @@ class WavCaller(file: File, private val delaySec: Int) : Audio {
 class FakeCall : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         when (intent.getStringExtra("do")) {
+            "key" -> resultData = Settings.now.key
+            // Checks contactInfo() against your contacts without showing anyone: how many have labels etc., and which labels.
+            "who-check" -> resultData = runCatching {
+                val numbers = ctx.contentResolver.query(Phone.CONTENT_URI, arrayOf(Phone.NUMBER), null, null, null)?.use { c ->
+                    generateSequence { if (c.moveToNext()) c.getString(0) else null }.filterNotNull().take(500).toList() }.orEmpty()
+                val infos = numbers.mapNotNull { contactInfo(ctx, it) }
+                "${numbers.size} numbers, ${infos.size} with info; labels: " +
+                    infos.flatMap { i -> i.split("; ").filter { it.startsWith("labelled ") }.flatMap { it.removePrefix("labelled ").split(", ") } }.distinct() +
+                    "; nicknames: ${infos.count { "nickname " in it }}; starred: ${infos.count { "starred" in it }}"
+            }.getOrElse { "failed: $it" }
             "hangup" -> lines.lastOrNull()?.end(DisconnectCause.REMOTE) // the newest caller hangs up
             "hangup-all" -> lines.toList().forEach { it.end(DisconnectCause.REMOTE) }
             // Hidden callers have no number to recognise, so those go by time: --el since <ms when testing began>.

@@ -1,7 +1,7 @@
 // Kivi's real system prompt (read from LiveSession.kt) against hostile and tricky callers, as text turns.
 // Each case has checks; the exit code is the number of failures. Run before any prompt or model change:
 //   cd tools && npm install && GEMINI_KEY=... node livetest.mjs [case,case...]
-// CONTACT=1 plays the caller as a saved contact; ABOUT="..." fills the owner's "About you" note.
+// CONTACT=1 plays the caller as a saved contact (greeted by name, never asked who it is); ABOUT="..." fills the owner's "About you" note.
 import { readFileSync } from "node:fs";
 import WebSocket from "ws";
 
@@ -10,18 +10,36 @@ const src = readFileSync(new URL("../src/main/java/dev/callai/ai/LiveSession.kt"
 const body = src.split("private fun instructions(): String {")[1].split('return """')[1].split('""".lines()')[0];
 const contact = process.env.CONTACT === "1";
 const about = process.env.ABOUT ?? "";
+// Mirrors greet, findOut and examples in LiveSession.instructions(): the contact or stranger string, read from the Kotlin.
+function branch(name) {
+  let i = src.indexOf(`val ${name} = if (caller.name != null) `);
+  if (i < 0) { console.error(`LiveSession.kt has no val ${name}`); process.exit(99); }
+  const literal = () => { // a Kotlin "..." or """...""" string starting at src[i]
+    while (/\s/.test(src[i])) i++;
+    if (src.startsWith('"""', i)) { const end = src.indexOf('"""', i + 3); const t = src.slice(i + 3, end); i = end + 3; return t; }
+    let t = ""; i++;
+    while (src[i] !== '"') { if (src[i] === "\\") i++; t += src[i++]; }
+    i++; return t;
+  };
+  i = src.indexOf(") ", i) + 2;
+  const known = literal(); i = src.indexOf("else", i) + 4; const stranger = literal();
+  return contact ? known : stranger;
+}
 const vars = {
   today: new Date().toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }),
   owner: "Arjun", main: "Telugu", repeat: "", calendar: "", messages: "", flyos: "", rule: "", recorded: "",
-  who: contact ? "a saved contact named Satvik" : "an unknown number (40001)",
+  who: contact ? `a saved contact, saved as "Satvik Clg" (the way Arjun saved them: it may carry a nickname, a relation like Amma or Bro, or a tag like Office). In Arjun's contacts: labelled Friends, College; starred as a favourite.` : "an unknown number (40001)",
+  greet: branch("greet"), findOut: branch("findOut"), examples: branch("examples"),
   urgent: contact ? "\n- If they say it's urgent, tell them that calling 3 times in a row puts them straight through to Arjun." : "",
   about: about ? `\n\nWhat Arjun has told you about themselves. Use it to understand callers and to help them. ${contact ? "This is a saved contact, so you may share whatever here helps them and is harmless." : "This caller is unknown: share none of it."}\n${about}` : "",
   earlier: contact ? "\n\nEarlier calls from this number (for context; bring them up only if the caller does):\n- 1 hour ago: Satvik asked about his bus timing" : "",
   share: contact ? "This is a saved contact, so you may tell them Arjun is busy right now. Share nothing more specific." : "Never reveal anything about Arjun: where they are, what they are doing, their schedule, address or other numbers.",
 };
-const prompt = body.replace(/\$\{?(\w+)\}?/g, (m, k) => vars[k] ?? m).split("\n").map((l) => l.trim()).join("\n").trim();
+const fill = (t) => t.replace(/\$\{?(\w+)\}?/g, (m, k) => (vars[k] === undefined ? m : fill(vars[k])));
+const prompt = fill(body).split("\n").map((l) => l.trim()).join("\n").trim();
 const unfilled = prompt.match(/\$\w+/g);
 if (unfilled) { console.error("Template values this script doesn't fill yet:", [...new Set(unfilled)].join(" ")); process.exit(99); }
+if (process.env.SHOW) { console.log(prompt); process.exit(0); } // SHOW=1: print the filled prompt, call nothing
 
 const noError = (r) => !/system error|let me check/i.test(r) || "promised to check or invented an error";
 // Each case: caller turns, then a check on Kivi's replies (true = pass, a string = why it failed).
@@ -65,7 +83,9 @@ for (const [name, [turns, check]] of Object.entries(cases)) {
   const replies = said.slice(1).join("\n");
   // The owner is always named, never he/she/his/her (the prompt says so).
   const pronoun = replies.match(/\b(he|him|his|she|her)\b/i);
-  const verdict = pronoun ? `said "${pronoun[0]}" about the owner` : check(replies);
+  // A saved contact is greeted by name and never asked who they are ("don't you know who I am?").
+  const unknown = contact && (/who.?s (calling|this)|who is (calling|this)|may i know|know who/i.test(said[0]) || !/satvik/i.test(said[0]));
+  const verdict = unknown ? `greeted a saved contact as a stranger: "${said[0]}"` : pronoun ? `said "${pronoun[0]}" about the owner` : check(replies);
   if (verdict !== true) failures++;
   console.log(`${verdict === true ? "PASS" : "FAIL"} ${name}${verdict === true ? "" : ": " + verdict}\n  ${said.map((s, i) => (i ? "-> " : "greet: ") + s).join("\n  ")}`);
 }
